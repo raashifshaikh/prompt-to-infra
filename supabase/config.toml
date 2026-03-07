@@ -1,1 +1,7 @@
 project_id = "ppijamljbuqczriukhlh"
+
+[functions.generate-backend]
+verify_jwt = false
+
+[functions.backend-actions]
+verify_jwt = false
