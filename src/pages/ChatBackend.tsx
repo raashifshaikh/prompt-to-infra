@@ -588,6 +588,21 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
           </AnimatePresence>
 
           <div ref={messagesEndRef} />
+
+          {/* Scroll to bottom button */}
+          <AnimatePresence>
+            {showScrollBtn && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                onClick={scrollToBottom}
+                className="sticky bottom-2 left-1/2 -translate-x-1/2 h-8 w-8 rounded-full bg-card border border-border shadow-md flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors z-10"
+              >
+                <ArrowDown className="h-4 w-4" />
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Attachment Panel */}
