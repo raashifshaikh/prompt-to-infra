@@ -57,6 +57,87 @@ Include a natural language explanation BEFORE the JSON block explaining your pla
 - For complex ones ("banking system"), ask 3-4 rounds of questions
 - Always think about: file uploads, auth, audit trails, soft deletes, indexes`;
 
+// Auto-select best free model from OpenRouter
+const OPENROUTER_FREE_MODELS = [
+  'meta-llama/llama-4-maverick:free',
+  'deepseek/deepseek-r1:free',
+  'google/gemma-3-27b-it:free',
+  'qwen/qwen3-32b:free',
+];
+
+async function callLovableAI(apiMessages: any[], stream: boolean) {
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
+
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages: apiMessages,
+      stream,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Lovable AI error ${response.status}: ${errText}`);
+  }
+
+  return response;
+}
+
+async function callOpenRouter(apiMessages: any[], stream: boolean) {
+  const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
+  if (!OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY not configured');
+
+  // Try models in order until one works
+  for (const model of OPENROUTER_FREE_MODELS) {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://prompt-to-infra.lovable.app',
+          'X-Title': 'BackendForge AI Architect',
+        },
+        body: JSON.stringify({
+          model,
+          messages: apiMessages,
+          stream,
+        }),
+      });
+
+      if (response.ok) {
+        console.log(`OpenRouter fallback succeeded with model: ${model}`);
+        return response;
+      }
+      
+      console.warn(`OpenRouter model ${model} failed: ${response.status}`);
+    } catch (e) {
+      console.warn(`OpenRouter model ${model} threw: ${e}`);
+    }
+  }
+
+  throw new Error('All OpenRouter free models failed');
+}
+
+async function callAIWithFallback(apiMessages: any[], stream: boolean) {
+  // Primary: Lovable AI Gateway
+  try {
+    return await callLovableAI(apiMessages, stream);
+  } catch (e) {
+    console.warn('Lovable AI failed, falling back to OpenRouter:', e);
+  }
+
+  // Fallback: OpenRouter free models
+  return await callOpenRouter(apiMessages, stream);
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -64,18 +145,12 @@ serve(async (req) => {
 
   try {
     const { messages, mode } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
 
     const apiMessages = [
       { role: 'system', content: systemPrompt },
       ...messages,
     ];
 
-    // If mode is 'generate', we add an instruction to finalize
     if (mode === 'generate') {
       apiMessages.push({
         role: 'system',
@@ -83,34 +158,7 @@ serve(async (req) => {
       });
     }
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: apiMessages,
-        stream: true,
-      }),
-    });
-
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: 'Rate limit exceeded. Please wait a moment.' }), {
-          status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: 'Credits exhausted. Please top up your Lovable workspace.' }), {
-          status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      const errText = await response.text();
-      console.error('AI gateway error:', response.status, errText);
-      throw new Error(`AI gateway error: ${response.status}`);
-    }
+    const response = await callAIWithFallback(apiMessages, true);
 
     return new Response(response.body, {
       headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },

@@ -39,7 +39,7 @@ You MUST respond with ONLY valid JSON matching this schema:
 }
 
 IMPORTANT ANALYSIS RULES:
-1. Look at component props and state to infer data models (e.g., a UserCard with name, email, avatar = users table)
+1. Look at component props and state to infer data models
 2. Look at form fields to infer table columns and validation rules
 3. Look at list/grid components to infer collection endpoints
 4. Look at route structure to infer API routes needed
@@ -81,7 +81,6 @@ async function fetchGitHubRepo(repoUrl: string, token?: string): Promise<{ struc
   const allFiles = treeData.tree.filter((f: any) => f.type === 'blob').map((f: any) => f.path);
   const structure = allFiles.slice(0, 300).join('\n');
 
-  // Static key files
   const keyFiles = [
     'package.json', 'tsconfig.json', 'README.md', 'readme.md',
     'src/App.tsx', 'src/App.jsx', 'src/App.vue', 'src/App.svelte',
@@ -91,7 +90,6 @@ async function fetchGitHubRepo(repoUrl: string, token?: string): Promise<{ struc
     '.env.example', '.env.local.example',
   ];
 
-  // Dynamically discover important files from tree
   const importantPatterns = [
     /^src\/(pages|views|screens)\/[^/]+\.(tsx|jsx|vue|svelte)$/,
     /^src\/(components)\/[^/]+\.(tsx|jsx|vue|svelte)$/,
@@ -100,8 +98,8 @@ async function fetchGitHubRepo(repoUrl: string, token?: string): Promise<{ struc
     /^src\/(lib|utils|helpers|services|api)\/[^/]+\.(ts|tsx|js)$/,
     /^src\/(store|stores|state|context)\/[^/]+\.(ts|tsx|js)$/,
     /^src\/(config|constants)\/[^/]+\.(ts|js)$/,
-    /^app\/.*\.(tsx|jsx)$/,  // Next.js app dir
-    /^pages\/.*\.(tsx|jsx|vue)$/,  // pages dir
+    /^app\/.*\.(tsx|jsx)$/,
+    /^pages\/.*\.(tsx|jsx|vue)$/,
   ];
 
   const dynamicFiles: string[] = [];
@@ -115,7 +113,6 @@ async function fetchGitHubRepo(repoUrl: string, token?: string): Promise<{ struc
   const allKeyFiles = [...new Set([...keyFiles, ...dynamicFiles])];
   const files: Record<string, string> = {};
 
-  // Fetch files in parallel (batches of 5)
   for (let i = 0; i < allKeyFiles.length; i += 5) {
     const batch = allKeyFiles.slice(i, i + 5);
     const results = await Promise.allSettled(
@@ -137,13 +134,92 @@ async function fetchGitHubRepo(repoUrl: string, token?: string): Promise<{ struc
     }
   }
 
-  // Component file listing
   const componentFiles = allFiles
     .filter((f: string) => f.startsWith('src/') && (f.endsWith('.tsx') || f.endsWith('.jsx') || f.endsWith('.vue')))
     .slice(0, 80);
   files['_component_files'] = componentFiles.join('\n');
 
   return { structure, files };
+}
+
+// Free models to try on OpenRouter (in priority order)
+const OPENROUTER_FREE_MODELS = [
+  'meta-llama/llama-4-maverick:free',
+  'deepseek/deepseek-r1:free',
+  'google/gemma-3-27b-it:free',
+  'qwen/qwen3-32b:free',
+];
+
+async function callLovableAI(messages: any[]) {
+  const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+  if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
+
+  const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'google/gemini-2.5-flash',
+      messages,
+      temperature: 0.3,
+      max_tokens: 8192,
+    }),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Lovable AI error ${response.status}: ${errText}`);
+  }
+
+  return response;
+}
+
+async function callOpenRouter(messages: any[]) {
+  const OPENROUTER_API_KEY = Deno.env.get('OPENROUTER_API_KEY');
+  if (!OPENROUTER_API_KEY) throw new Error('OPENROUTER_API_KEY not configured');
+
+  for (const model of OPENROUTER_FREE_MODELS) {
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://prompt-to-infra.lovable.app',
+          'X-Title': 'BackendForge Repo Analyzer',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          temperature: 0.3,
+          max_tokens: 8192,
+        }),
+      });
+
+      if (response.ok) {
+        console.log(`OpenRouter fallback succeeded with model: ${model}`);
+        return response;
+      }
+
+      console.warn(`OpenRouter model ${model} failed: ${response.status}`);
+    } catch (e) {
+      console.warn(`OpenRouter model ${model} threw: ${e}`);
+    }
+  }
+
+  throw new Error('All OpenRouter free models failed');
+}
+
+async function callAIWithFallback(messages: any[]) {
+  try {
+    return await callLovableAI(messages);
+  } catch (e) {
+    console.warn('Lovable AI failed, falling back to OpenRouter:', e);
+  }
+
+  return await callOpenRouter(messages);
 }
 
 serve(async (req) => {
@@ -153,11 +229,6 @@ serve(async (req) => {
 
   try {
     const { githubUrl, uploadedFiles, githubToken } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
 
     let projectInfo = '';
     const MAX_PROJECT_INFO = 30000;
@@ -183,40 +254,18 @@ serve(async (req) => {
       projectInfo = projectInfo.slice(0, MAX_PROJECT_INFO) + '\n\n[... truncated for token limits]';
     }
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: analysisPrompt },
-          { role: 'user', content: `Analyze this frontend project thoroughly and suggest a complete backend architecture:\n\n${projectInfo}` },
-        ],
-        temperature: 0.3,
-        max_tokens: 8192,
-      }),
-    });
+    const messages = [
+      { role: 'system', content: analysisPrompt },
+      { role: 'user', content: `Analyze this frontend project thoroughly and suggest a complete backend architecture:\n\n${projectInfo}` },
+    ];
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error('AI Gateway analysis error:', response.status, errText);
-      if (response.status === 429) {
-        throw new Error('Rate limited — please try again in a moment');
-      }
-      if (response.status === 402) {
-        throw new Error('AI credits exhausted — please add funds');
-      }
-      throw new Error(`AI Gateway error: ${response.status}`);
-    }
+    const response = await callAIWithFallback(messages);
 
     const data = await response.json();
     const content = data.choices?.[0]?.message?.content;
     if (!content) throw new Error('No content in AI response');
 
-    // Try to extract JSON from the response (handle markdown code blocks)
+    // Extract JSON from response (handle markdown code blocks)
     let jsonStr = content;
     const jsonMatch = content.match(/```(?:json)?\s*([\s\S]*?)```/);
     if (jsonMatch) {
