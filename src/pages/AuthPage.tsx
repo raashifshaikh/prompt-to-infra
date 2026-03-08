@@ -104,11 +104,11 @@ const AuthPage = () => {
             <>
               <Button
                 variant="outline"
-                className="w-full h-11 gap-2 rounded-xl text-sm"
-                onClick={handleGithubLogin}
+                className="w-full h-11 gap-2 rounded-xl text-sm opacity-50 cursor-not-allowed"
+                onClick={() => toast({ title: 'GitHub login unavailable', description: 'GitHub authentication is temporarily unavailable. Please use email instead.' })}
               >
                 <Github className="h-4 w-4" />
-                Continue with GitHub
+                GitHub — Temporarily Unavailable
               </Button>
 
               <div className="relative">
