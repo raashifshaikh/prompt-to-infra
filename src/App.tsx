@@ -42,6 +42,7 @@ const App = () => (
                 <Route path="/project/:id" element={<ProtectedRoute><ProjectView /></ProtectedRoute>} />
                 <Route path="/db-manager" element={<ProtectedRoute><DatabaseManager /></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><SettingsPage /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
