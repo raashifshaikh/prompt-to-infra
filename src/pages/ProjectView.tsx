@@ -261,6 +261,68 @@ const ProjectView = () => {
                   </div>
                 )}
 
+                {/* AI Image Generation */}
+                {result.tables.some(t => isImageTable(t.name)) && (
+                  <div>
+                    <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" /> AI Image Generation
+                    </h3>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Generate sample images for your product/entity tables using AI.
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {result.tables.filter(t => isImageTable(t.name)).map(table => (
+                        <Card key={table.name}>
+                          <CardContent className="p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-mono font-medium">{table.name}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => handleGenerateImage(table.name)}
+                                disabled={generatingFor === table.name}
+                              >
+                                {generatingFor === table.name ? (
+                                  <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Generating...</>
+                                ) : (
+                                  <><Sparkles className="h-3 w-3 mr-1" /> Generate</>
+                                )}
+                              </Button>
+                            </div>
+                            {generatedImages[table.name]?.length > 0 && (
+                              <div className="flex gap-2 flex-wrap mt-2">
+                                {generatedImages[table.name].map((img, idx) => (
+                                  <div key={idx} className="relative group">
+                                    <img
+                                      src={img}
+                                      alt={`Generated ${table.name}`}
+                                      className="h-20 w-20 object-cover rounded-md border border-border"
+                                    />
+                                    <div className="absolute inset-0 bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity rounded-md flex items-center justify-center gap-1">
+                                      <button
+                                        onClick={() => handleDownloadImage(img, `${table.name}-${idx}`)}
+                                        className="h-6 w-6 rounded bg-primary/10 flex items-center justify-center hover:bg-primary/20"
+                                      >
+                                        <Download className="h-3 w-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => removeImage(table.name, idx)}
+                                        className="h-6 w-6 rounded bg-destructive/10 flex items-center justify-center hover:bg-destructive/20"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <h3 className="text-sm font-medium mb-3">API Routes</h3>
