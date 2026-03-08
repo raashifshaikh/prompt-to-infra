@@ -17,7 +17,7 @@ const items = [
   { title: 'Home', url: '/', icon: Home },
   { title: 'Projects', url: '/dashboard', icon: FolderOpen },
   { title: 'Create New', url: '/create', icon: PlusCircle },
-  { title: 'Import Project', url: '/import', icon: FileUp },
+  
   
   { title: 'Settings', url: '/settings', icon: Settings },
   { title: 'About', url: '/about', icon: BookOpen },

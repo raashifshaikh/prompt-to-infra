@@ -28,7 +28,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/create" element={<CreateBackend />} />
             <Route path="/project/:id" element={<ProjectView />} />
-            <Route path="/import" element={<ImportProject />} />
+            
             
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/about" element={<AboutPage />} />
