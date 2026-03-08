@@ -12,6 +12,7 @@ import ImportProject from "./pages/ImportProject";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 import AboutPage from "./pages/AboutPage";
+import ConnectSupabase from "./pages/ConnectSupabase";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/create" element={<CreateBackend />} />
             <Route path="/project/:id" element={<ProjectView />} />
             <Route path="/import" element={<ImportProject />} />
+            <Route path="/connect-supabase" element={<ConnectSupabase />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/about" element={<AboutPage />} />
             <Route path="*" element={<NotFound />} />

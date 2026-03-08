@@ -20,3 +20,9 @@ verify_jwt = false
 
 [functions.github-auth]
 verify_jwt = false
+
+[functions.supabase-oauth]
+verify_jwt = false
+
+[functions.supabase-manage]
+verify_jwt = false

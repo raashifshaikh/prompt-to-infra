@@ -18,6 +18,7 @@ const items = [
   { title: 'Projects', url: '/dashboard', icon: FolderOpen },
   { title: 'Create New', url: '/create', icon: PlusCircle },
   { title: 'Import Project', url: '/import', icon: FileUp },
+  { title: 'Connect Supabase', url: '/connect-supabase', icon: Database },
   { title: 'Settings', url: '/settings', icon: Settings },
   { title: 'About', url: '/about', icon: BookOpen },
 ];
