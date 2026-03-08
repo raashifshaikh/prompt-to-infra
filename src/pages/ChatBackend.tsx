@@ -13,7 +13,8 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   Send, Loader2, Sparkles, Database,
   CheckCircle2, ArrowRight, Image as ImageIcon,
-  Plus, Github, FileUp, X, FileText, ChevronDown
+  Plus, Github, FileUp, X, FileText, ChevronDown,
+  MessageSquarePlus, ArrowDown
 } from 'lucide-react';
 
 type Message = { role: 'user' | 'assistant'; content: string };
@@ -37,9 +38,29 @@ type Attachment = {
   url?: string;
 };
 
+type ChatSession = {
+  id: string;
+  title: string;
+  messages: Message[];
+  createdAt: string;
+};
+
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-backend`;
+const CHAT_HISTORY_KEY = 'bytebase-chat-history';
+
+const loadChatHistory = (): ChatSession[] => {
+  try {
+    return JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '[]');
+  } catch { return []; }
+};
+
+const saveChatHistory = (sessions: ChatSession[]) => {
+  localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(sessions.slice(0, 20)));
+};
 
 const ChatBackend = () => {
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>(loadChatHistory);
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => crypto.randomUUID());
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -49,7 +70,9 @@ const ChatBackend = () => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [githubUrl, setGithubUrl] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -61,6 +84,50 @@ const ChatBackend = () => {
   };
 
   useEffect(scrollToBottom, [messages]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 120) + 'px';
+    }
+  }, [input]);
+
+  // Scroll detection for scroll-to-bottom button
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const fromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      setShowScrollBtn(fromBottom > 100);
+    };
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Save messages to chat history
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const title = messages[0]?.content.slice(0, 50) || 'New Chat';
+    setChatSessions(prev => {
+      const existing = prev.findIndex(s => s.id === currentSessionId);
+      const session: ChatSession = { id: currentSessionId, title, messages, createdAt: new Date().toISOString() };
+      const updated = existing >= 0
+        ? prev.map((s, i) => i === existing ? session : s)
+        : [session, ...prev];
+      saveChatHistory(updated);
+      return updated;
+    });
+  }, [messages, currentSessionId]);
+
+  const handleNewChat = () => {
+    setMessages([]);
+    setPlan(null);
+    setAttachments([]);
+    setInput('');
+    setCurrentSessionId(crypto.randomUUID());
+    inputRef.current?.focus();
+  };
 
   const extractPlan = (text: string): PlanSummary | null => {
     const jsonMatch = text.match(/```json\s*([\s\S]*?)```/);
