@@ -5,8 +5,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
-import { ArrowLeft, Play, Pencil, Rocket, Copy } from 'lucide-react';
+import { ArrowLeft, Pencil } from 'lucide-react';
+import DockerTab from '@/components/DockerTab';
+import DeployTab from '@/components/DeployTab';
+import IntegrationTutorial from '@/components/IntegrationTutorial';
 
 const ProjectView = () => {
   const { id } = useParams<{ id: string }>();
@@ -27,14 +29,8 @@ const ProjectView = () => {
 
   const result = project.result;
 
-  const handleApply = () => {
-    toast.success('Changes applied (mock)');
-    updateProject(project.id, { status: 'ready' });
-  };
-
-  const handleDeploy = () => {
-    toast.success('Deployment started (mock)');
-    updateProject(project.id, { status: 'deployed' });
+  const handleUpdateProject = (updates: Partial<typeof project>) => {
+    updateProject(project.id, updates);
   };
 
   return (
@@ -46,19 +42,14 @@ const ProjectView = () => {
           </Button>
           <div className="flex-1">
             <h1 className="text-xl font-bold">{project.name}</h1>
-            <p className="text-xs text-muted-foreground">{project.backendType} · {new Date(project.createdAt).toLocaleDateString()}</p>
+            <p className="text-xs text-muted-foreground">
+              {project.backendType} · {new Date(project.createdAt).toLocaleDateString()}
+              {project.repoSource && <> · Imported from {project.repoSource.type}</>}
+            </p>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => navigate('/create')}>
-              <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit Prompt
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleApply}>
-              <Play className="h-3.5 w-3.5 mr-1.5" /> Apply
-            </Button>
-            <Button size="sm" onClick={handleDeploy}>
-              <Rocket className="h-3.5 w-3.5 mr-1.5" /> Deploy
-            </Button>
-          </div>
+          <Button variant="outline" size="sm" onClick={() => navigate('/create')}>
+            <Pencil className="h-3.5 w-3.5 mr-1.5" /> Edit Prompt
+          </Button>
         </div>
 
         {!result ? (
@@ -71,10 +62,12 @@ const ProjectView = () => {
           </Card>
         ) : (
           <Tabs defaultValue="schema">
-            <TabsList className="mb-4">
+            <TabsList className="mb-4 flex-wrap h-auto gap-1">
               <TabsTrigger value="schema">Schema</TabsTrigger>
               <TabsTrigger value="routes">API Routes</TabsTrigger>
               <TabsTrigger value="features">Features</TabsTrigger>
+              <TabsTrigger value="docker">Docker</TabsTrigger>
+              <TabsTrigger value="tutorial">Tutorial</TabsTrigger>
               <TabsTrigger value="logs">Logs</TabsTrigger>
               <TabsTrigger value="deploy">Deploy</TabsTrigger>
             </TabsList>
@@ -171,6 +164,26 @@ const ProjectView = () => {
               </Card>
             </TabsContent>
 
+            <TabsContent value="docker">
+              <DockerTab
+                dockerfile={result.dockerfile}
+                dockerCompose={result.dockerCompose}
+                envTemplate={result.envTemplate}
+              />
+            </TabsContent>
+
+            <TabsContent value="tutorial">
+              {result.integrationGuide && result.integrationGuide.length > 0 ? (
+                <IntegrationTutorial steps={result.integrationGuide} backendType={project.backendType} />
+              ) : (
+                <Card>
+                  <CardContent className="py-16 text-center">
+                    <p className="text-muted-foreground">No integration tutorial available for this project. Re-generate to include tutorial steps.</p>
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
             <TabsContent value="logs">
               <Card>
                 <CardContent className="p-6">
@@ -178,25 +191,17 @@ const ProjectView = () => {
                     <p>[{new Date(project.createdAt).toISOString()}] Project created</p>
                     <p>[{new Date(project.createdAt).toISOString()}] Generation started for {project.backendType}</p>
                     {project.status === 'ready' && <p>[{new Date().toISOString()}] Generation complete — {result.tables.length} tables, {result.routes.length} routes</p>}
-                    {project.status === 'deployed' && <p>[{new Date().toISOString()}] Deployment initiated</p>}
+                    {project.supabaseConfig?.connected && <p>[{new Date().toISOString()}] Connected to Supabase: {project.supabaseConfig.url}</p>}
+                    {project.firebaseConfig?.connected && <p>[{new Date().toISOString()}] Firebase config generated for: {project.firebaseConfig.projectId}</p>}
+                    {project.flyDeployment && <p>[{new Date().toISOString()}] Fly.io: {project.flyDeployment.appName} — {project.flyDeployment.status}</p>}
+                    {project.status === 'deployed' && <p>[{new Date().toISOString()}] Deployment complete</p>}
                   </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
             <TabsContent value="deploy">
-              <Card>
-                <CardContent className="p-6 text-center">
-                  <Rocket className="h-10 w-10 text-muted-foreground/40 mx-auto mb-4" />
-                  <p className="text-muted-foreground mb-4">
-                    {project.status === 'deployed' ? 'Your backend has been deployed.' : 'Deploy your generated backend to the cloud.'}
-                  </p>
-                  <Button onClick={handleDeploy} disabled={project.status === 'deployed'}>
-                    <Rocket className="h-4 w-4 mr-2" />
-                    {project.status === 'deployed' ? 'Deployed' : 'Deploy to Cloud'}
-                  </Button>
-                </CardContent>
-              </Card>
+              <DeployTab project={project} onUpdateProject={handleUpdateProject} />
             </TabsContent>
           </Tabs>
         )}
