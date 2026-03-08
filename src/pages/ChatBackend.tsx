@@ -485,10 +485,10 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
               animate="visible"
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm ${
+              <div className={`max-w-[90%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm ${
                 msg.role === 'user'
-                  ? 'bg-[hsl(30,25%,93%)] dark:bg-[hsl(30,10%,20%)] text-foreground rounded-br-sm'
-                  : 'bg-card border border-border rounded-bl-sm'
+                  ? 'bg-[hsl(30,25%,93%)] dark:bg-[hsl(30,15%,22%)] text-foreground rounded-br-sm'
+                  : 'bg-card border border-border dark:border-border/60 rounded-bl-sm'
               }`}>
                 {msg.role === 'assistant' ? renderMessageContent(msg.content) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
