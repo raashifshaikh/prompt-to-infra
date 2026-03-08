@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjects } from '@/context/ProjectContext';
 import { DashboardLayout } from '@/components/DashboardLayout';
@@ -6,7 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X } from 'lucide-react';
+import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X, GitGraph } from 'lucide-react';
+import SchemaERDiagram from '@/components/SchemaERDiagram';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import DeployAndTutorial from '@/components/DeployAndTutorial';
@@ -22,6 +23,19 @@ const ProjectView = () => {
 
   const defaultTab = searchParams.get('tab') === 'deploy' ? 'deploy' : 'schema';
 
+  const result = project?.result ?? null;
+
+  // Count relations for the ER diagram tab label
+  const relations = useMemo(() => {
+    if (!result?.tables) return [];
+    return result.tables.flatMap(t =>
+      t.columns.filter(c => c.references).map(c => ({
+        from: t.name,
+        to: c.references!.match(/^(\w+)\(/)?.[1] || '',
+      }))
+    );
+  }, [result?.tables]);
+
   if (!project) {
     return (
       <DashboardLayout>
@@ -32,8 +46,6 @@ const ProjectView = () => {
       </DashboardLayout>
     );
   }
-
-  const result = project.result;
 
   const handleUpdateProject = (updates: Partial<typeof project>) => {
     updateProject(project.id, updates);
@@ -111,6 +123,9 @@ const ProjectView = () => {
           <Tabs defaultValue={defaultTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="schema">Schema & API</TabsTrigger>
+              <TabsTrigger value="diagram">
+                <GitGraph className="h-3.5 w-3.5 mr-1.5" /> ER Diagram
+              </TabsTrigger>
               <TabsTrigger value="deploy">Deploy & Tutorial</TabsTrigger>
             </TabsList>
 
@@ -341,6 +356,21 @@ const ProjectView = () => {
                     ))}
                   </div>
                 </div>
+              </div>
+            </TabsContent>
+
+            {/* ER Diagram Tab */}
+            <TabsContent value="diagram">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium">Entity Relationship Diagram</h3>
+                    <p className="text-xs text-muted-foreground">
+                      {result.tables.length} tables · {relations.length} relationships · Drag to pan, scroll to zoom
+                    </p>
+                  </div>
+                </div>
+                <SchemaERDiagram tables={result.tables} />
               </div>
             </TabsContent>
 
