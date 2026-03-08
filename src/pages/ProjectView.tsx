@@ -181,7 +181,44 @@ const ProjectView = () => {
                   </div>
                 )}
 
-                {/* API Routes */}
+                {/* Storage Buckets */}
+                {result.storageBuckets && result.storageBuckets.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium mb-3">Storage Buckets</h3>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {result.storageBuckets.map((bucket) => {
+                        const isImage = bucket.allowedMimeTypes?.some(m => m.startsWith('image'));
+                        const isPdf = bucket.allowedMimeTypes?.some(m => m.includes('pdf'));
+                        const BucketIcon = isImage ? Image : isPdf ? FileText : HardDrive;
+                        return (
+                          <Card key={bucket.name}>
+                            <CardContent className="p-3 flex items-center gap-3">
+                              <BucketIcon className="h-4 w-4 text-primary shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <span className="text-sm font-mono font-medium">{bucket.name}</span>
+                                <div className="flex gap-1.5 mt-1 flex-wrap">
+                                  <Badge variant={bucket.public ? 'default' : 'secondary'} className="text-[10px]">
+                                    {bucket.public ? <><Globe className="h-2.5 w-2.5 mr-0.5" /> Public</> : <><Lock className="h-2.5 w-2.5 mr-0.5" /> Private</>}
+                                  </Badge>
+                                  {bucket.maxFileSize && (
+                                    <Badge variant="outline" className="text-[10px]">
+                                      {bucket.maxFileSize >= 1048576 ? `${Math.round(bucket.maxFileSize / 1048576)}MB` : `${Math.round(bucket.maxFileSize / 1024)}KB`}
+                                    </Badge>
+                                  )}
+                                  {bucket.allowedMimeTypes?.slice(0, 3).map(m => (
+                                    <Badge key={m} variant="outline" className="text-[10px] font-mono">{m.split('/')[1] || m}</Badge>
+                                  ))}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+
                 <div>
                   <h3 className="text-sm font-medium mb-3">API Routes</h3>
                   <div className="space-y-2">
