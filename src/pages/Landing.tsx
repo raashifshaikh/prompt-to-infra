@@ -319,7 +319,7 @@ const Landing = () => {
             <a href="#" className="hover:text-foreground transition-colors duration-200">Privacy</a>
             <a href="#" className="hover:text-foreground transition-colors duration-200">Terms</a>
           </div>
-          <p className="text-xs text-muted-foreground">Built by <a href="https://www.instagram.com/_raashif?igsh=bm14Y2FpanVkbHdm" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Raashif</a> • © 2027 Bytebase</p>
+          <p className="text-xs text-muted-foreground">Built by <a href="https://www.instagram.com/_raashif?igsh=bm14Y2FpanVkbHdm" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Raashif</a> • © 2026 Bytebase</p>
         </div>
       </footer>
     </div>
