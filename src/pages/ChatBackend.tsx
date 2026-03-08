@@ -159,16 +159,21 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
 
       const result = data?.result || data;
       const projectName = data?.projectName || plan.appName;
+      const projectId = crypto.randomUUID();
 
-      const newProject = addProject({
+      const newProject = {
+        id: projectId,
         name: projectName,
         prompt: enrichedPrompt,
-        backendType: 'supabase',
+        backendType: 'supabase' as const,
         result,
-      });
+        createdAt: new Date().toISOString(),
+        status: 'complete' as const,
+      };
 
+      addProject(newProject);
       toast({ title: '🎉 Backend Generated!', description: `${result.tables?.length || 0} tables created` });
-      navigate(`/project/${newProject.id}?tab=deploy`);
+      navigate(`/project/${projectId}?tab=deploy`);
     } catch (e: any) {
       toast({ title: 'Generation failed', description: e.message, variant: 'destructive' });
     } finally {
