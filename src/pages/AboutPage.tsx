@@ -97,7 +97,7 @@ const AboutPage = () => {
         {/* What You Can Do */}
         <section>
           <h2 className="text-2xl font-bold mb-2">What You Can Do</h2>
-          <p className="text-muted-foreground mb-6">Everything BackendForge offers — from AI generation to production deployment.</p>
+          <p className="text-muted-foreground mb-6"><p className="text-muted-foreground mb-6">Everything Bytebase offers — from AI generation to production deployment.</p> — from AI generation to production deployment.</p>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {features.map((f) => (
               <Card key={f.title} className="bg-card/50 border-border/50 hover:border-primary/30 transition-colors">
