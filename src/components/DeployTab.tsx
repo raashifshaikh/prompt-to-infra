@@ -247,37 +247,68 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
               {project.supabaseConfig?.connected && <Badge variant="default" className="text-xs">Connected</Badge>}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <Input
-              placeholder="postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
-              value={dbUrl}
-              onChange={(e) => setDbUrl(e.target.value)}
-              type="password"
-              className="font-mono text-xs"
-            />
-            <p className="text-xs text-muted-foreground">
-              Use the <strong>direct connection string</strong> (port 5432) from your Supabase project → Settings → Database.
-              Do not use the pooler connection (port 6543) for migrations.
-            </p>
-            <div className="flex items-center gap-2">
-              <Button onClick={handleApplySupabase} disabled={applyingSupabase} size="sm">
-                {applyingSupabase ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Database className="h-3.5 w-3.5 mr-1.5" />}
-                Apply Schema
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                asChild
-              >
-                <a
-                  href="https://supabase.com/dashboard/project/ppijamljbuqczriukhlh/sql/new"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                  Open SQL Editor
-                </a>
-              </Button>
+          <CardContent className="space-y-4">
+            {/* One-click apply via OAuth */}
+            {connectedProject ? (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-primary" />
+                  <span className="text-sm font-medium">Connected: {connectedProject.name}</span>
+                  <Badge variant="outline" className="text-xs font-mono">{connectedProject.ref}</Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Apply schema directly via Supabase Management API — no database URL needed.
+                </p>
+                <Button onClick={handleApplyViaApi} disabled={applyingViaApi} size="sm">
+                  {applyingViaApi ? (
+                    <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Applying...</>
+                  ) : (
+                    <><Zap className="h-3.5 w-3.5 mr-1.5" /> One-Click Apply</>
+                  )}
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-muted-foreground/30 p-4 space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Connect your Supabase account for one-click schema deployment — no database URL needed.
+                </p>
+                <Button variant="outline" size="sm" onClick={() => navigate('/connect-supabase')}>
+                  <Database className="h-3.5 w-3.5 mr-1.5" /> Connect Supabase Account
+                </Button>
+              </div>
+            )}
+
+            {/* Manual fallback */}
+            <div className="border-t pt-4">
+              <p className="text-xs font-medium mb-2 text-muted-foreground">Or apply manually with a database URL:</p>
+              <Input
+                placeholder="postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
+                value={dbUrl}
+                onChange={(e) => setDbUrl(e.target.value)}
+                type="password"
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Use the <strong>direct connection string</strong> (port 5432) from your Supabase project → Settings → Database.
+              </p>
+              <div className="flex items-center gap-2 mt-2">
+                <Button onClick={handleApplySupabase} disabled={applyingSupabase} size="sm" variant="outline">
+                  {applyingSupabase ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Database className="h-3.5 w-3.5 mr-1.5" />}
+                  Apply Schema
+                </Button>
+                {connectedProject && (
+                  <Button variant="ghost" size="sm" asChild>
+                    <a
+                      href={`https://supabase.com/dashboard/project/${connectedProject.ref}/sql/new`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                      Open SQL Editor
+                    </a>
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Migration Progress */}
