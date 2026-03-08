@@ -427,16 +427,22 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
 
   return (
     <DashboardLayout>
-      <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-4rem)]">
+      <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-4rem)] sm:h-[calc(100vh-4rem)]">
         {/* Minimal Header */}
-        <div className="flex items-center gap-2 py-4 px-1">
+        <div className="flex items-center gap-2 py-3 sm:py-4 px-1">
           <h1 className="text-base font-semibold tracking-tight text-foreground">AI Architect</h1>
           <span className="text-xs text-muted-foreground">·</span>
-          <span className="text-xs text-muted-foreground">Design your backend</span>
+          <span className="text-xs text-muted-foreground hidden sm:inline">Design your backend</span>
+          <div className="ml-auto">
+            <Button variant="ghost" size="sm" onClick={handleNewChat} className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+              <MessageSquarePlus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">New Chat</span>
+            </Button>
+          </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto py-4 space-y-4 scroll-smooth">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto py-4 space-y-4 scroll-smooth relative px-1 sm:px-0">
           <AnimatePresence>
             {messages.length === 0 && (
               <motion.div
