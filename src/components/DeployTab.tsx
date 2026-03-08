@@ -155,6 +155,7 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
     }
   };
 
+  const handleApplyFirebase = async () => {
     if (!fbProjectId) {
       toast.error('Please enter your Firebase Project ID');
       return;
