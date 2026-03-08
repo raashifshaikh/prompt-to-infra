@@ -278,7 +278,7 @@ const Landing = () => {
       </section>
 
       {/* CTA */}
-      <section className="border-t border-border/30">
+      <section id="cta" className="border-t border-border/30 scroll-mt-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-24 sm:py-32">
           <motion.div
             initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}

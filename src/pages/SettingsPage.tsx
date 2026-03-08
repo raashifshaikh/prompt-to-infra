@@ -6,7 +6,7 @@ const SettingsPage = () => (
   <DashboardLayout>
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-2">Settings</h1>
-      <p className="text-muted-foreground text-sm mb-8"><p className="text-muted-foreground text-sm mb-8">Configure your Bytebase environment.</p></p>
+      <p className="text-muted-foreground text-sm mb-8">Configure your Bytebase environment.</p>
       <div className="space-y-4">
         <Card>
           <CardHeader>
