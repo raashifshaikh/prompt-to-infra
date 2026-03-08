@@ -25,6 +25,13 @@ export interface IndexDef {
   unique?: boolean;
 }
 
+export interface StorageBucket {
+  name: string;
+  public: boolean;
+  allowedMimeTypes?: string[];
+  maxFileSize?: number;
+}
+
 export interface ApiRoute {
   method: string;
   path: string;
@@ -43,6 +50,7 @@ export interface GenerationResult {
   tables: DatabaseTable[];
   enums?: EnumType[];
   indexes?: IndexDef[];
+  storageBuckets?: StorageBucket[];
   routes: ApiRoute[];
   auth: {
     enabled: boolean;

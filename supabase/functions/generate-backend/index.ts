@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const systemPrompt = `You are a senior backend architect AI. Given a user's description and target platform, generate a production-grade, complex database schema with proper relationships.
+const systemPrompt = `You are a senior backend architect AI. Given a user's description and target platform, generate a production-grade, complex database schema with proper relationships, file storage, and comprehensive business logic.
 
 ## CRITICAL RULES FOR SCHEMA DESIGN:
 
@@ -27,7 +27,41 @@ const systemPrompt = `You are a senior backend architect AI. Given a user's desc
 
 9. **Realistic Defaults**: Use sensible defaults — booleans default to false, counters to 0, statuses to first enum value.
 
-10. **Comprehensive Schema**: Generate ALL tables needed. For an e-commerce app, that means: users, profiles, categories, products, product_images, product_variants, orders, order_items, addresses, reviews, wishlists, coupons, etc.
+10. **Comprehensive Schema**: Generate ALL tables needed. For an e-commerce app, that means: users, profiles, categories, products, product_images, product_variants, orders, order_items, addresses, reviews, wishlists, coupons, etc. Always generate 8-20 tables.
+
+## FILE STORAGE & MEDIA:
+
+11. **Storage Buckets**: When the app needs file uploads (product images, user avatars, PDF documents, attachments, etc.), generate a \`storageBuckets\` array. Each bucket has:
+    - \`name\`: bucket identifier (e.g. "product-images", "avatars", "documents", "attachments")
+    - \`public\`: boolean — true for publicly accessible files (product images, avatars), false for private files (invoices, user documents)
+    - \`allowedMimeTypes\`: array of allowed MIME types (e.g. ["image/jpeg", "image/png", "image/webp"] for images, ["application/pdf"] for PDFs, ["image/*", "application/pdf"] for mixed)
+    - \`maxFileSize\`: max file size in bytes (e.g. 5242880 for 5MB, 10485760 for 10MB, 52428800 for 50MB)
+
+12. **File Reference Tables**: When files are associated with entities, create proper tables to track them:
+    - \`product_images\`: id, product_id (FK), file_path (text), file_name (text), file_size (integer), mime_type (text), alt_text (text), sort_order (integer, default 0), is_primary (boolean, default false)
+    - \`documents\`: id, uploaded_by (FK to users), file_path, file_name, file_size, mime_type, category, description
+    - \`attachments\`: generic polymorphic attachments with entity_type + entity_id pattern
+    - Always store \`file_path\` (the storage path), \`file_name\` (original name), \`file_size\` (bytes), and \`mime_type\`
+
+13. **User Profiles with Avatars**: Always create a \`profiles\` table with \`avatar_url\` (text, nullable) for user profile pictures. Create an "avatars" storage bucket.
+
+## PRODUCT & E-COMMERCE PATTERNS:
+
+14. **Products must include**: name, slug (unique), description (text), short_description, price (numeric 10,2), compare_at_price (for sale prices), cost_price, sku (unique), barcode, stock_quantity (integer, default 0), is_active (boolean), is_featured (boolean), weight, dimensions (jsonb), metadata (jsonb), seo_title, seo_description, category_id (FK), brand_id (FK if applicable)
+
+15. **Product Variants**: For variable products (sizes, colors), create product_variants table with: product_id (FK), variant_name, sku, price_override, stock_quantity, attributes (jsonb for color/size/etc)
+
+16. **Reviews & Ratings**: rating (integer, 1-5 via check or validation), title, body (text), is_verified_purchase (boolean), helpful_count (integer, default 0)
+
+## ADVANCED PATTERNS:
+
+17. **Settings/Config table**: For app-level settings, create a key-value settings table: key (text, unique), value (jsonb), description (text), is_public (boolean)
+
+18. **Notifications table**: id, user_id (FK), type (enum), title, body, data (jsonb), read_at (timestamptz, nullable), created_at
+
+19. **Activity Log**: id, user_id, action (text), entity_type (text), entity_id (uuid), metadata (jsonb), ip_address (text), created_at — for tracking user actions
+
+20. **Tags system**: tags table + entity_tags junction table for flexible tagging on any entity
 
 ## JSON RESPONSE SCHEMA:
 
@@ -46,6 +80,11 @@ You MUST respond with ONLY valid JSON matching this exact schema:
           { "name": "user_id", "type": "uuid", "nullable": false, "references": "users(id)", "on_delete": "CASCADE" },
           { "name": "status", "type": "order_status", "nullable": false, "default": "'pending'" },
           { "name": "email", "type": "text", "nullable": false, "unique": true },
+          { "name": "avatar_url", "type": "text", "nullable": true },
+          { "name": "file_path", "type": "text", "nullable": false },
+          { "name": "file_size", "type": "integer", "nullable": true },
+          { "name": "mime_type", "type": "text", "nullable": true },
+          { "name": "metadata", "type": "jsonb", "nullable": true, "default": "'{}'" },
           { "name": "created_at", "type": "timestamptz", "nullable": false, "default": "now()" },
           { "name": "updated_at", "type": "timestamptz", "nullable": false, "default": "now()" }
         ]
@@ -55,15 +94,22 @@ You MUST respond with ONLY valid JSON matching this exact schema:
       { "table": "orders", "columns": ["user_id"], "unique": false },
       { "table": "users", "columns": ["email"], "unique": true }
     ],
+    "storageBuckets": [
+      { "name": "product-images", "public": true, "allowedMimeTypes": ["image/jpeg", "image/png", "image/webp"], "maxFileSize": 5242880 },
+      { "name": "avatars", "public": true, "allowedMimeTypes": ["image/jpeg", "image/png", "image/webp"], "maxFileSize": 2097152 },
+      { "name": "documents", "public": false, "allowedMimeTypes": ["application/pdf", "image/jpeg", "image/png"], "maxFileSize": 52428800 }
+    ],
     "routes": [
-      { "method": "GET", "path": "/api/resource", "description": "List all resources", "auth_required": true }
+      { "method": "GET", "path": "/api/resource", "description": "List all resources", "auth_required": true },
+      { "method": "POST", "path": "/api/upload/product-image", "description": "Upload a product image", "auth_required": true },
+      { "method": "POST", "path": "/api/upload/document", "description": "Upload a PDF document", "auth_required": true }
     ],
     "auth": {
       "enabled": true,
       "providers": ["email", "google"],
       "roles": ["admin", "user"]
     },
-    "features": ["CRUD operations", "Authentication", "File storage"],
+    "features": ["CRUD operations", "Authentication", "File storage", "Image uploads", "PDF uploads"],
     "dockerfile": "FROM node:20-alpine\\nWORKDIR /app\\nCOPY package*.json ./\\nRUN npm ci\\nCOPY . .\\nEXPOSE 3000\\nCMD [\\"npm\\", \\"start\\"]",
     "dockerCompose": "version: '3.8'\\nservices:\\n  app:\\n    build: .\\n    ports:\\n      - '3000:3000'\\n    env_file: .env\\n    depends_on:\\n      - db\\n  db:\\n    image: postgres:16-alpine\\n    environment:\\n      POSTGRES_DB: app\\n      POSTGRES_USER: postgres\\n      POSTGRES_PASSWORD: postgres\\n    volumes:\\n      - pgdata:/var/lib/postgresql/data\\nvolumes:\\n  pgdata:",
     "envTemplate": "DATABASE_URL=postgresql://postgres:postgres@db:5432/app\\nJWT_SECRET=your-secret-here\\nPORT=3000",
@@ -73,21 +119,39 @@ You MUST respond with ONLY valid JSON matching this exact schema:
         "description": "Install the client SDK for your backend",
         "code": "npm install @supabase/supabase-js",
         "language": "bash"
+      },
+      {
+        "title": "Upload a File",
+        "description": "Upload images or PDFs to storage buckets",
+        "code": "const { data, error } = await supabase.storage\\n  .from('product-images')\\n  .upload(\`products/\${fileName}\`, file, {\\n    contentType: file.type,\\n    upsert: false\\n  });\\n\\n// Get public URL\\nconst { data: urlData } = supabase.storage\\n  .from('product-images')\\n  .getPublicUrl(data.path);",
+        "language": "typescript"
       }
     ]
   }
 }
 
 ## TABLE ORDERING:
-Tables MUST be ordered so that referenced tables come BEFORE tables that reference them. e.g. \`users\` before \`posts\`, \`posts\` before \`comments\`.
+Tables MUST be ordered so that referenced tables come BEFORE tables that reference them. e.g. \`users\` before \`profiles\`, \`profiles\` before \`products\`, \`products\` before \`product_images\`.
 
 ## INTEGRATION GUIDE:
-Generate 3-5 tutorial steps showing how to connect a frontend to this backend with real code snippets.
-- For Supabase: use @supabase/supabase-js
-- For Firebase: use Firebase JS SDK  
-- For local/cloud: show REST API with fetch
+Generate 5-8 tutorial steps showing how to connect a frontend. MUST include:
+- Installing the SDK
+- Initializing the client
+- CRUD operations on tables
+- File upload example (uploading images/PDFs to storage)
+- Getting public URLs for uploaded files
+- Authentication example if auth is enabled
 
-IMPORTANT: Generate a proper Dockerfile, docker-compose.yml, and .env.example tailored to the backend type. Be thorough — generate 8-20 tables for complex apps. Think like a senior engineer designing for production.`;
+For Supabase: use @supabase/supabase-js with storage API examples
+For Firebase: use Firebase JS SDK with Firebase Storage
+For local/cloud: show REST API with fetch + multipart form uploads
+
+IMPORTANT: 
+- Generate a proper Dockerfile, docker-compose.yml, and .env.example tailored to the backend type
+- Be thorough — generate 8-20 tables for complex apps
+- ALWAYS include storage buckets when the app deals with images, files, PDFs, or any media
+- ALWAYS include file upload routes and integration guide steps for uploads
+- Think like a senior engineer designing for production`;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {

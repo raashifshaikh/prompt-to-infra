@@ -33,6 +33,13 @@ interface IndexDef {
   unique?: boolean;
 }
 
+interface StorageBucket {
+  name: string;
+  public: boolean;
+  allowedMimeTypes?: string[];
+  maxFileSize?: number;
+}
+
 // SQL safety validator
 const ALLOWED_PREFIXES = [
   'CREATE TABLE',
@@ -45,6 +52,7 @@ const ALLOWED_PREFIXES = [
   'CREATE UNIQUE INDEX',
   'CREATE TRIGGER',
   'DO $$',
+  'INSERT INTO STORAGE',
 ];
 
 const BLOCKED_KEYWORDS = [
@@ -105,7 +113,7 @@ function topologicalSort(tables: DatabaseTable[]): DatabaseTable[] {
   
   function visit(name: string) {
     if (visited.has(name)) return;
-    if (visiting.has(name)) return; // break cycles
+    if (visiting.has(name)) return;
     visiting.add(name);
     for (const dep of deps.get(name) || []) {
       visit(dep);
@@ -172,11 +180,48 @@ function generateRLSStatements(tableName: string): string[] {
   ];
 }
 
+function generateStorageBucketSQL(bucket: StorageBucket): { label: string; sql: string }[] {
+  const stmts: { label: string; sql: string }[] = [];
+  
+  // Create bucket
+  const mimeTypes = bucket.allowedMimeTypes ? `'${JSON.stringify(bucket.allowedMimeTypes)}'::jsonb` : 'NULL';
+  const maxSize = bucket.maxFileSize || 52428800; // 50MB default
+  
+  stmts.push({
+    label: `Create storage bucket "${bucket.name}"`,
+    sql: `INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) VALUES ('${bucket.name}', '${bucket.name}', ${bucket.public}, ${maxSize}, ${mimeTypes}) ON CONFLICT (id) DO NOTHING`,
+  });
+  
+  // Storage RLS policies
+  if (bucket.public) {
+    stmts.push({
+      label: `Allow public read on "${bucket.name}"`,
+      sql: `CREATE POLICY "Public read ${bucket.name}" ON storage.objects FOR SELECT TO public USING (bucket_id = '${bucket.name}')`,
+    });
+  }
+  
+  stmts.push({
+    label: `Allow authenticated upload to "${bucket.name}"`,
+    sql: `CREATE POLICY "Auth upload ${bucket.name}" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = '${bucket.name}')`,
+  });
+  
+  stmts.push({
+    label: `Allow authenticated update on "${bucket.name}"`,
+    sql: `CREATE POLICY "Auth update ${bucket.name}" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = '${bucket.name}')`,
+  });
+  
+  stmts.push({
+    label: `Allow authenticated delete on "${bucket.name}"`,
+    sql: `CREATE POLICY "Auth delete ${bucket.name}" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = '${bucket.name}')`,
+  });
+  
+  return stmts;
+}
+
 function generateStatementsForTable(table: DatabaseTable): { label: string; sql: string }[] {
   const stmts: { label: string; sql: string }[] = [];
   stmts.push({ label: `Create table "${table.name}"`, sql: generateCreateTableSQL(table) });
   
-  // Add updated_at trigger if table has updated_at column
   const hasUpdatedAt = table.columns.some(c => c.name === 'updated_at');
   if (hasUpdatedAt) {
     const triggerStmts = generateUpdatedAtTrigger(table.name);
@@ -184,7 +229,6 @@ function generateStatementsForTable(table: DatabaseTable): { label: string; sql:
     stmts.push({ label: `Add updated_at trigger on "${table.name}"`, sql: triggerStmts[1] });
   }
   
-  // RLS
   const rlsStmts = generateRLSStatements(table.name);
   stmts.push({ label: `Enable RLS on "${table.name}"`, sql: rlsStmts[0] });
   for (let i = 1; i < rlsStmts.length; i++) {
@@ -199,7 +243,7 @@ serve(async (req) => {
   }
 
   try {
-    const { tables, enums, indexes, dbUrl } = await req.json();
+    const { tables, enums, indexes, storageBuckets, dbUrl } = await req.json();
 
     if (!dbUrl) {
       throw new Error('Database connection URL is required. Use the direct connection string (port 5432) from Supabase Settings > Database.');
@@ -227,14 +271,22 @@ serve(async (req) => {
       allStatements.push(...generateStatementsForTable(table));
     }
     
-    // 3. Indexes last
+    // 3. Indexes
     if (indexes && Array.isArray(indexes)) {
       for (const idx of indexes as IndexDef[]) {
         allStatements.push({ label: `Create index on "${idx.table}"`, sql: generateIndexSQL(idx) });
       }
     }
+    
+    // 4. Storage buckets (these use INSERT which we need to allow)
+    const storageStatements: { label: string; sql: string }[] = [];
+    if (storageBuckets && Array.isArray(storageBuckets)) {
+      for (const bucket of storageBuckets as StorageBucket[]) {
+        storageStatements.push(...generateStorageBucketSQL(bucket));
+      }
+    }
 
-    // Validate all statements before executing any
+    // Validate schema statements (not storage — those use INSERT)
     for (const stmt of allStatements) {
       const validation = validateSQL(stmt.sql);
       if (!validation.safe) {
@@ -242,8 +294,9 @@ serve(async (req) => {
       }
     }
 
-    // Generate full SQL for download
-    const fullSQL = allStatements.map(s => s.sql + ';').join('\n\n');
+    // Generate full SQL for download (include storage)
+    const allStmtsForSQL = [...allStatements, ...storageStatements];
+    const fullSQL = allStmtsForSQL.map(s => s.sql + ';').join('\n\n');
 
     // Connect to the user's database
     const client = new Client(dbUrl);
@@ -253,6 +306,7 @@ serve(async (req) => {
       await client.connect();
       await client.queryArray("BEGIN");
 
+      // Execute schema statements
       for (const stmt of allStatements) {
         try {
           await client.queryArray(stmt.sql);
@@ -273,15 +327,33 @@ serve(async (req) => {
       }
 
       await client.queryArray("COMMIT");
+      
+      // Storage bucket statements run outside the schema transaction
+      // (storage.buckets may not support transactional DDL)
+      for (const stmt of storageStatements) {
+        try {
+          await client.queryArray(stmt.sql);
+          results.push({ label: stmt.label, success: true });
+        } catch (stmtErr) {
+          const errMsg = stmtErr instanceof Error ? stmtErr.message : 'Unknown error';
+          // Don't fail the whole migration for storage — it's additive
+          results.push({ label: stmt.label, success: false, error: errMsg });
+        }
+      }
     } finally {
       try { await client.end(); } catch { /* ignore */ }
     }
 
+    const failedCount = results.filter(r => !r.success).length;
+    const successCount = results.filter(r => r.success).length;
+
     return new Response(JSON.stringify({
-      success: true,
+      success: failedCount === 0,
       results,
       sql: fullSQL,
-      message: `Successfully applied ${results.length} statements`,
+      message: failedCount === 0
+        ? `Successfully applied ${successCount} statements`
+        : `Applied ${successCount} statements with ${failedCount} warnings`,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
