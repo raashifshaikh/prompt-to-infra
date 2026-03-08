@@ -135,6 +135,7 @@ serve(async (req) => {
     // Final safety truncation
     if (projectInfo.length > MAX_PROJECT_INFO) {
       projectInfo = projectInfo.slice(0, MAX_PROJECT_INFO) + '\n\n[... truncated for token limits]';
+    }
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
