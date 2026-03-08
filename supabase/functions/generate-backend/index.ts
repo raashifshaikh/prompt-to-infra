@@ -5,20 +5,44 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const systemPrompt = `You are a backend architecture AI. Given a user's description of what backend they need and the target platform, generate a structured JSON response.
+const systemPrompt = `You are an expert backend architect AI. Given a user's description and target platform, generate a production-grade structured JSON response.
+
+CRITICAL RULES for schema design:
+1. **Every table MUST have**: "id" (uuid, primary key), "created_at" (timestamptz, default now()), "updated_at" (timestamptz, default now())
+2. **Foreign keys**: Always include "references" field with format "table_name(column)" and "on_delete" behavior (CASCADE, SET NULL, or RESTRICT)
+3. **Junction tables**: For many-to-many relationships, create dedicated junction tables (e.g., "user_roles", "post_tags") with composite references
+4. **Enums**: Use custom enum types for status fields, role types, etc. Define them in the "enums" array
+5. **Indexes**: Add indexes for foreign keys, frequently filtered columns, and unique constraints. Define in "indexes" array
+6. **Soft deletes**: Add "deleted_at" (timestamptz, nullable) for user-facing content tables
+7. **Audit columns**: Add "created_by" and "updated_by" (uuid, nullable, references users) for content tables
+8. **Unique constraints**: Mark columns as "unique": true where appropriate (emails, slugs, usernames)
+9. **Proper types**: Use uuid for IDs, text for strings, timestamptz for dates, integer/bigint for counts, numeric(10,2) for money, boolean for flags, jsonb for flexible data
 
 You MUST respond with ONLY valid JSON matching this exact schema:
 {
   "projectName": "short descriptive name",
   "result": {
+    "enums": [
+      { "name": "order_status", "values": ["pending", "processing", "shipped", "delivered", "cancelled"] }
+    ],
     "tables": [
       {
         "name": "table_name",
         "columns": [
-          { "name": "id", "type": "uuid", "nullable": false, "default": "gen_random_uuid()", "primary_key": true },
-          { "name": "column_name", "type": "text", "nullable": true, "default": null, "primary_key": false }
+          { "name": "id", "type": "uuid", "nullable": false, "default": "gen_random_uuid()", "primary_key": true, "unique": false },
+          { "name": "user_id", "type": "uuid", "nullable": false, "default": null, "primary_key": false, "unique": false, "references": "users(id)", "on_delete": "CASCADE" },
+          { "name": "status", "type": "order_status", "nullable": false, "default": "'pending'", "primary_key": false, "unique": false },
+          { "name": "email", "type": "text", "nullable": false, "default": null, "primary_key": false, "unique": true },
+          { "name": "created_at", "type": "timestamptz", "nullable": false, "default": "now()", "primary_key": false, "unique": false },
+          { "name": "updated_at", "type": "timestamptz", "nullable": false, "default": "now()", "primary_key": false, "unique": false },
+          { "name": "deleted_at", "type": "timestamptz", "nullable": true, "default": null, "primary_key": false, "unique": false }
         ]
       }
+    ],
+    "indexes": [
+      { "table": "orders", "columns": ["user_id"], "unique": false },
+      { "table": "orders", "columns": ["status", "created_at"], "unique": false },
+      { "table": "users", "columns": ["email"], "unique": true }
     ],
     "routes": [
       { "method": "GET", "path": "/api/resource", "description": "List all resources", "auth_required": false }
@@ -55,9 +79,16 @@ You MUST respond with ONLY valid JSON matching this exact schema:
   }
 }
 
-Generate realistic, well-designed database schemas with proper relationships, types, and defaults. Create RESTful API routes that cover all CRUD operations. Detect and list all features the user's backend needs.
-
-IMPORTANT: Always generate a proper Dockerfile, docker-compose.yml, and .env.example tailored to the backend type. Also generate an integrationGuide array with 3-5 tutorial steps showing how to connect a frontend to this backend, with real code snippets specific to the chosen platform (Supabase, Firebase, etc.).
+DESIGN PATTERNS TO FOLLOW:
+- Users table should always be the root entity. Other tables reference it.
+- Order tables correctly: parent tables before child tables in the array.
+- For e-commerce: users → categories → products → orders → order_items → reviews
+- For social: users → posts → comments → likes → follows (junction)
+- For SaaS: users → organizations → org_members (junction) → projects → tasks
+- Always create at least one junction table for role assignments or M:M relationships
+- Generate 3-5 meaningful indexes per schema
+- Generate at least 2-3 enums for status/type fields
+- Routes should cover full CRUD + list with filters for every main entity
 
 For Supabase backends, the integration guide should use @supabase/supabase-js.
 For Firebase backends, use the Firebase JS SDK.
@@ -91,7 +122,7 @@ serve(async (req) => {
           { role: 'user', content: userMessage },
         ],
         temperature: 0.3,
-        max_tokens: 8192,
+        max_tokens: 16384,
         response_format: { type: 'json_object' },
       }),
     });
