@@ -23,18 +23,7 @@ const ProjectView = () => {
 
   const defaultTab = searchParams.get('tab') === 'deploy' ? 'deploy' : 'schema';
 
-  if (!project) {
-    return (
-      <DashboardLayout>
-        <div className="flex flex-col items-center justify-center py-20">
-          <p className="text-muted-foreground mb-4">Project not found.</p>
-          <Button variant="outline" onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
-        </div>
-      </DashboardLayout>
-    );
-  }
-
-  const result = project.result;
+  const result = project?.result ?? null;
 
   // Count relations for the ER diagram tab label
   const relations = useMemo(() => {
@@ -46,6 +35,17 @@ const ProjectView = () => {
       }))
     );
   }, [result?.tables]);
+
+  if (!project) {
+    return (
+      <DashboardLayout>
+        <div className="flex flex-col items-center justify-center py-20">
+          <p className="text-muted-foreground mb-4">Project not found.</p>
+          <Button variant="outline" onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   const handleUpdateProject = (updates: Partial<typeof project>) => {
     updateProject(project.id, updates);
