@@ -13,6 +13,8 @@ interface TableColumn {
   default?: string;
   primary_key?: boolean;
   references?: string;
+  on_delete?: string;
+  unique?: boolean;
 }
 
 interface DatabaseTable {
@@ -20,7 +22,18 @@ interface DatabaseTable {
   columns: TableColumn[];
 }
 
-// SQL safety validator — only allow safe DDL statements
+interface EnumType {
+  name: string;
+  values: string[];
+}
+
+interface IndexDef {
+  table: string;
+  columns: string[];
+  unique?: boolean;
+}
+
+// SQL safety validator
 const ALLOWED_PREFIXES = [
   'CREATE TABLE',
   'CREATE POLICY',
@@ -30,6 +43,8 @@ const ALLOWED_PREFIXES = [
   'CREATE FUNCTION',
   'CREATE OR REPLACE FUNCTION',
   'CREATE UNIQUE INDEX',
+  'CREATE TRIGGER',
+  'DO $$',
 ];
 
 const BLOCKED_KEYWORDS = [
@@ -63,16 +78,83 @@ function validateSQL(stmt: string): { safe: boolean; reason?: string } {
   return { safe: true };
 }
 
+// Topological sort: order tables so referenced tables come first
+function topologicalSort(tables: DatabaseTable[]): DatabaseTable[] {
+  const tableMap = new Map<string, DatabaseTable>();
+  const deps = new Map<string, Set<string>>();
+  
+  for (const t of tables) {
+    tableMap.set(t.name, t);
+    deps.set(t.name, new Set());
+  }
+  
+  for (const t of tables) {
+    for (const col of t.columns) {
+      if (col.references) {
+        const match = col.references.match(/^(\w+)\(/);
+        if (match && match[1] !== t.name && tableMap.has(match[1])) {
+          deps.get(t.name)!.add(match[1]);
+        }
+      }
+    }
+  }
+  
+  const sorted: DatabaseTable[] = [];
+  const visited = new Set<string>();
+  const visiting = new Set<string>();
+  
+  function visit(name: string) {
+    if (visited.has(name)) return;
+    if (visiting.has(name)) return; // break cycles
+    visiting.add(name);
+    for (const dep of deps.get(name) || []) {
+      visit(dep);
+    }
+    visiting.delete(name);
+    visited.add(name);
+    sorted.push(tableMap.get(name)!);
+  }
+  
+  for (const t of tables) {
+    visit(t.name);
+  }
+  
+  return sorted;
+}
+
+function generateEnumSQL(e: EnumType): string {
+  const vals = e.values.map(v => `'${v}'`).join(', ');
+  return `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = '${e.name}') THEN CREATE TYPE public."${e.name}" AS ENUM (${vals}); END IF; END $$`;
+}
+
 function generateCreateTableSQL(table: DatabaseTable): string {
   const colDefs = table.columns.map(col => {
     let def = `"${col.name}" ${col.type}`;
     if (col.primary_key) def += ' PRIMARY KEY';
+    if (col.unique && !col.primary_key) def += ' UNIQUE';
     if (!col.nullable && !col.primary_key) def += ' NOT NULL';
     if (col.default) def += ` DEFAULT ${col.default}`;
-    if (col.references) def += ` REFERENCES ${col.references}`;
+    if (col.references) {
+      def += ` REFERENCES public."${col.references.replace('(', '"(')}"`;
+      if (col.on_delete) def += ` ON DELETE ${col.on_delete}`;
+    }
     return def;
   });
   return `CREATE TABLE IF NOT EXISTS public."${table.name}" (\n  ${colDefs.join(',\n  ')}\n)`;
+}
+
+function generateIndexSQL(idx: IndexDef): string {
+  const cols = idx.columns.map(c => `"${c}"`).join(', ');
+  const name = `idx_${idx.table}_${idx.columns.join('_')}`;
+  const unique = idx.unique ? 'UNIQUE ' : '';
+  return `CREATE ${unique}INDEX IF NOT EXISTS "${name}" ON public."${idx.table}" (${cols})`;
+}
+
+function generateUpdatedAtTrigger(tableName: string): string[] {
+  return [
+    `CREATE OR REPLACE FUNCTION public.update_updated_at_column() RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ LANGUAGE plpgsql`,
+    `CREATE TRIGGER update_${tableName}_updated_at BEFORE UPDATE ON public."${tableName}" FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column()`,
+  ];
 }
 
 function generateRLSStatements(tableName: string): string[] {
@@ -88,6 +170,16 @@ function generateRLSStatements(tableName: string): string[] {
 function generateStatementsForTable(table: DatabaseTable): { label: string; sql: string }[] {
   const stmts: { label: string; sql: string }[] = [];
   stmts.push({ label: `Create table "${table.name}"`, sql: generateCreateTableSQL(table) });
+  
+  // Add updated_at trigger if table has updated_at column
+  const hasUpdatedAt = table.columns.some(c => c.name === 'updated_at');
+  if (hasUpdatedAt) {
+    const triggerStmts = generateUpdatedAtTrigger(table.name);
+    stmts.push({ label: `Create updated_at function`, sql: triggerStmts[0] });
+    stmts.push({ label: `Add updated_at trigger on "${table.name}"`, sql: triggerStmts[1] });
+  }
+  
+  // RLS
   const rlsStmts = generateRLSStatements(table.name);
   stmts.push({ label: `Enable RLS on "${table.name}"`, sql: rlsStmts[0] });
   for (let i = 1; i < rlsStmts.length; i++) {
@@ -102,7 +194,7 @@ serve(async (req) => {
   }
 
   try {
-    const { tables, dbUrl } = await req.json();
+    const { tables, enums, indexes, dbUrl } = await req.json();
 
     if (!dbUrl) {
       throw new Error('Database connection URL is required. Use the direct connection string (port 5432) from Supabase Settings > Database.');
@@ -112,10 +204,29 @@ serve(async (req) => {
       throw new Error('No tables provided');
     }
 
+    // Sort tables topologically
+    const sortedTables = topologicalSort(tables as DatabaseTable[]);
+
     // Generate all statements
     const allStatements: { label: string; sql: string }[] = [];
-    for (const table of tables as DatabaseTable[]) {
+    
+    // 1. Enums first
+    if (enums && Array.isArray(enums)) {
+      for (const e of enums as EnumType[]) {
+        allStatements.push({ label: `Create enum "${e.name}"`, sql: generateEnumSQL(e) });
+      }
+    }
+    
+    // 2. Tables in topological order
+    for (const table of sortedTables) {
       allStatements.push(...generateStatementsForTable(table));
+    }
+    
+    // 3. Indexes last
+    if (indexes && Array.isArray(indexes)) {
+      for (const idx of indexes as IndexDef[]) {
+        allStatements.push({ label: `Create index on "${idx.table}"`, sql: generateIndexSQL(idx) });
+      }
     }
 
     // Validate all statements before executing any
@@ -135,8 +246,6 @@ serve(async (req) => {
 
     try {
       await client.connect();
-
-      // Execute in a transaction
       await client.queryArray("BEGIN");
 
       for (const stmt of allStatements) {
@@ -146,7 +255,6 @@ serve(async (req) => {
         } catch (stmtErr) {
           const errMsg = stmtErr instanceof Error ? stmtErr.message : 'Unknown error';
           results.push({ label: stmt.label, success: false, error: errMsg });
-          // Rollback on any failure
           await client.queryArray("ROLLBACK");
           return new Response(JSON.stringify({
             success: false,

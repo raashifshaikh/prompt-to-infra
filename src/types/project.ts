@@ -5,11 +5,24 @@ export interface TableColumn {
   default?: string;
   primary_key?: boolean;
   references?: string;
+  on_delete?: string;
+  unique?: boolean;
 }
 
 export interface DatabaseTable {
   name: string;
   columns: TableColumn[];
+}
+
+export interface EnumType {
+  name: string;
+  values: string[];
+}
+
+export interface IndexDef {
+  table: string;
+  columns: string[];
+  unique?: boolean;
 }
 
 export interface ApiRoute {
@@ -28,6 +41,8 @@ export interface TutorialStep {
 
 export interface GenerationResult {
   tables: DatabaseTable[];
+  enums?: EnumType[];
+  indexes?: IndexDef[];
   routes: ApiRoute[];
   auth: {
     enabled: boolean;

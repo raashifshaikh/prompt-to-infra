@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjects } from '@/context/ProjectContext';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,8 +11,11 @@ import DeployAndTutorial from '@/components/DeployAndTutorial';
 const ProjectView = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { getProject, updateProject } = useProjects();
   const project = getProject(id!);
+
+  const defaultTab = searchParams.get('tab') === 'deploy' ? 'deploy' : 'schema';
 
   if (!project) {
     return (
@@ -56,7 +59,7 @@ const ProjectView = () => {
             </CardContent>
           </Card>
         ) : (
-          <Tabs defaultValue="schema">
+          <Tabs defaultValue={defaultTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="schema">Schema & API</TabsTrigger>
               <TabsTrigger value="deploy">Deploy & Tutorial</TabsTrigger>
@@ -65,6 +68,27 @@ const ProjectView = () => {
             {/* Schema & API Tab */}
             <TabsContent value="schema">
               <div className="space-y-6">
+                {/* Enums */}
+                {result.enums && result.enums.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium mb-3">Custom Types (Enums)</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {result.enums.map((e) => (
+                        <Card key={e.name} className="inline-block">
+                          <CardContent className="p-3">
+                            <span className="text-xs font-mono font-medium text-primary">{e.name}</span>
+                            <div className="flex gap-1 mt-1.5 flex-wrap">
+                              {e.values.map(v => (
+                                <Badge key={v} variant="outline" className="text-[10px] font-mono">{v}</Badge>
+                              ))}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Auth & Features Summary */}
                 <Card>
                   <CardContent className="p-4">
@@ -91,7 +115,7 @@ const ProjectView = () => {
 
                 {/* Tables */}
                 <div>
-                  <h3 className="text-sm font-medium mb-3">Database Tables</h3>
+                  <h3 className="text-sm font-medium mb-3">Database Tables ({result.tables.length})</h3>
                   <div className="grid gap-3">
                     {result.tables.map((table) => (
                       <Card key={table.name}>
@@ -108,7 +132,7 @@ const ProjectView = () => {
                                 <tr className="border-b border-border">
                                   <th className="text-left p-2 text-muted-foreground font-medium">Column</th>
                                   <th className="text-left p-2 text-muted-foreground font-medium">Type</th>
-                                  <th className="text-left p-2 text-muted-foreground font-medium">Nullable</th>
+                                  <th className="text-left p-2 text-muted-foreground font-medium">Info</th>
                                 </tr>
                               </thead>
                               <tbody>
@@ -117,9 +141,13 @@ const ProjectView = () => {
                                     <td className="p-2">
                                       {col.name}
                                       {col.primary_key && <Badge className="ml-1.5 text-[10px] h-4" variant="outline">PK</Badge>}
+                                      {col.unique && !col.primary_key && <Badge className="ml-1.5 text-[10px] h-4" variant="outline">UQ</Badge>}
                                     </td>
                                     <td className="p-2 text-primary">{col.type}</td>
-                                    <td className="p-2 text-muted-foreground">{col.nullable ? 'yes' : 'no'}</td>
+                                    <td className="p-2 text-muted-foreground">
+                                      {col.references && <span className="text-xs">→ {col.references}</span>}
+                                      {col.on_delete && <span className="text-[10px] ml-1 text-muted-foreground/60">({col.on_delete})</span>}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -130,6 +158,22 @@ const ProjectView = () => {
                     ))}
                   </div>
                 </div>
+
+                {/* Indexes */}
+                {result.indexes && result.indexes.length > 0 && (
+                  <div>
+                    <h3 className="text-sm font-medium mb-3">Indexes</h3>
+                    <div className="space-y-1">
+                      {result.indexes.map((idx, i) => (
+                        <div key={i} className="flex items-center gap-2 text-xs font-mono bg-muted/50 rounded-md px-3 py-2">
+                          {idx.unique && <Badge variant="outline" className="text-[10px]">UNIQUE</Badge>}
+                          <span className="text-primary">{idx.table}</span>
+                          <span className="text-muted-foreground">({idx.columns.join(', ')})</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* API Routes */}
                 <div>
