@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjects } from '@/context/ProjectContext';
 import { DashboardLayout } from '@/components/DashboardLayout';
