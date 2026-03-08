@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Project } from '@/types/project';
+import { useAuth } from '@/context/AuthContext';
 
 interface ProjectContextType {
   projects: Project[];
@@ -11,21 +12,38 @@ interface ProjectContextType {
 
 const ProjectContext = createContext<ProjectContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'backendforge_projects';
+const STORAGE_KEY_PREFIX = 'backendforge_projects_';
 
 export const ProjectProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [projects, setProjects] = useState<Project[]>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
-  });
+  const { user } = useAuth();
+  const userId = user?.id;
+  const storageKey = userId ? `${STORAGE_KEY_PREFIX}${userId}` : null;
+  const isLoadingRef = useRef(false);
 
+  const [projects, setProjects] = useState<Project[]>([]);
+
+  // Load projects when user changes
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
-  }, [projects]);
+    if (!storageKey) {
+      setProjects([]);
+      return;
+    }
+    isLoadingRef.current = true;
+    try {
+      const stored = localStorage.getItem(storageKey);
+      setProjects(stored ? JSON.parse(stored) : []);
+    } catch {
+      setProjects([]);
+    }
+    setTimeout(() => { isLoadingRef.current = false; }, 0);
+  }, [storageKey]);
+
+  // Save projects when they change
+  useEffect(() => {
+    if (storageKey && !isLoadingRef.current) {
+      localStorage.setItem(storageKey, JSON.stringify(projects));
+    }
+  }, [projects, storageKey]);
 
   const addProject = useCallback((project: Project) => {
     setProjects(prev => [project, ...prev]);
