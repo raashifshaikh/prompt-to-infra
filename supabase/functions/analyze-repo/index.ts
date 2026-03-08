@@ -112,20 +112,29 @@ serve(async (req) => {
     }
 
     let projectInfo = '';
+    const MAX_PROJECT_INFO = 12000; // Stay well within Groq token limits
 
     if (githubUrl) {
       const { structure, files } = await fetchGitHubRepo(githubUrl, githubToken);
-      projectInfo = `## File Structure:\n${structure}\n\n`;
+      // Truncate file structure to first 200 files
+      const structLines = structure.split('\n').slice(0, 200).join('\n');
+      projectInfo = `## File Structure (first 200 files):\n${structLines}\n\n`;
       for (const [path, content] of Object.entries(files)) {
-        projectInfo += `## ${path}:\n\`\`\`\n${content.slice(0, 3000)}\n\`\`\`\n\n`;
+        if (projectInfo.length > MAX_PROJECT_INFO) break;
+        projectInfo += `## ${path}:\n\`\`\`\n${content.slice(0, 2000)}\n\`\`\`\n\n`;
       }
     } else if (uploadedFiles && typeof uploadedFiles === 'object') {
       for (const [path, content] of Object.entries(uploadedFiles)) {
-        projectInfo += `## ${path}:\n\`\`\`\n${(content as string).slice(0, 3000)}\n\`\`\`\n\n`;
+        if (projectInfo.length > MAX_PROJECT_INFO) break;
+        projectInfo += `## ${path}:\n\`\`\`\n${(content as string).slice(0, 2000)}\n\`\`\`\n\n`;
       }
     } else {
       throw new Error('Provide either a GitHub URL or uploaded files');
     }
+
+    // Final safety truncation
+    if (projectInfo.length > MAX_PROJECT_INFO) {
+      projectInfo = projectInfo.slice(0, MAX_PROJECT_INFO) + '\n\n[... truncated for token limits]';
 
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
