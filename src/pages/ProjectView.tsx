@@ -7,12 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText } from 'lucide-react';
 import DeployAndTutorial from '@/components/DeployAndTutorial';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ArrowLeft } from 'lucide-react';
-import DeployAndTutorial from '@/components/DeployAndTutorial';
 
 const ProjectView = () => {
   const { id } = useParams<{ id: string }>();
