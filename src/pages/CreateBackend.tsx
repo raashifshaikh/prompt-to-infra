@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
 import { useProjects } from '@/context/ProjectContext';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Sparkles, Github, FileText, Upload, Database, Flame, Server, Cloud, CheckCircle2, LogOut } from 'lucide-react';
+import { Loader2, Sparkles, Github, FileText, Upload, Database, Flame, Server, Cloud, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Project } from '@/types/project';
 
@@ -22,35 +23,82 @@ const examplePrompts = [
 ];
 
 const deployTargets = [
-  {
-    value: 'supabase',
-    label: 'Supabase',
-    icon: Database,
-    description: 'Connect your Supabase project and apply schema directly',
-    disabled: false,
-  },
-  {
-    value: 'firebase',
-    label: 'Firebase',
-    icon: Flame,
-    description: 'Download Firestore rules, indexes, and setup files',
-    disabled: false,
-  },
-  {
-    value: 'local',
-    label: 'Local / Self-hosted',
-    icon: Server,
-    description: 'Get Docker files and a step-by-step hosting tutorial',
-    disabled: false,
-  },
-  {
-    value: 'cloud',
-    label: 'Cloud Hosting',
-    icon: Cloud,
-    description: 'Coming soon',
-    disabled: true,
-  },
+  { value: 'supabase', label: 'Supabase', icon: Database, description: 'Connect your Supabase project and apply schema directly', disabled: false },
+  { value: 'firebase', label: 'Firebase', icon: Flame, description: 'Download Firestore rules, indexes, and setup files', disabled: false },
+  { value: 'local', label: 'Local / Self-hosted', icon: Server, description: 'Get Docker files and a step-by-step hosting tutorial', disabled: false },
+  { value: 'cloud', label: 'Cloud Hosting', icon: Cloud, description: 'Coming soon', disabled: true },
 ];
+
+const generationSteps = [
+  { label: 'Analyzing requirements', duration: 2000 },
+  { label: 'Designing database schema', duration: 3000 },
+  { label: 'Generating API routes', duration: 3000 },
+  { label: 'Creating deployment configs', duration: 4000 },
+  { label: 'Finalizing backend', duration: 3000 },
+];
+
+const GenerationProgress = () => {
+  const [currentStep, setCurrentStep] = useState(0);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    let totalElapsed = 0;
+    const totalDuration = generationSteps.reduce((s, step) => s + step.duration, 0);
+    
+    const interval = setInterval(() => {
+      totalElapsed += 100;
+      const pct = Math.min((totalElapsed / totalDuration) * 90, 90); // cap at 90% until done
+      setProgress(pct);
+      
+      let accumulated = 0;
+      for (let i = 0; i < generationSteps.length; i++) {
+        accumulated += generationSteps[i].duration;
+        if (totalElapsed < accumulated) {
+          setCurrentStep(i);
+          break;
+        }
+        if (i === generationSteps.length - 1) setCurrentStep(i);
+      }
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center">
+      <Card className="w-full max-w-md mx-4">
+        <CardContent className="pt-8 pb-6 px-6 space-y-6">
+          <div className="text-center">
+            <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Loader2 className="h-6 w-6 text-primary animate-spin" />
+            </div>
+            <h3 className="text-lg font-semibold mb-1">Generating Your Backend</h3>
+            <p className="text-sm text-muted-foreground">This usually takes 10-20 seconds</p>
+          </div>
+
+          <Progress value={progress} className="h-2" />
+
+          <div className="space-y-2">
+            {generationSteps.map((step, i) => (
+              <div key={i} className={`flex items-center gap-3 text-sm transition-all duration-300 ${
+                i < currentStep ? 'text-primary' : i === currentStep ? 'text-foreground' : 'text-muted-foreground/40'
+              }`}>
+                {i < currentStep ? (
+                  <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+                ) : i === currentStep ? (
+                  <Loader2 className="h-4 w-4 animate-spin shrink-0" />
+                ) : (
+                  <div className="h-4 w-4 rounded-full border border-muted-foreground/20 shrink-0" />
+                )}
+                <span>{step.label}</span>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};
 
 const CreateBackend = () => {
   const navigate = useNavigate();
@@ -66,7 +114,6 @@ const CreateBackend = () => {
   const [loading, setLoading] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
 
-  // GitHub OAuth state
   const [githubToken, setGithubToken] = useState<string | null>(localStorage.getItem('github_token'));
   const [githubUser, setGithubUser] = useState<{ login: string; avatar_url: string; name?: string } | null>(null);
   const [exchangingToken, setExchangingToken] = useState(false);
@@ -164,7 +211,7 @@ const CreateBackend = () => {
       if (error) throw error;
       updateProject(projectId, { result: data.result, status: 'ready', name: data.projectName || project.name });
       toast.success('Backend generated successfully!');
-      navigate(`/project/${projectId}`);
+      navigate(`/project/${projectId}?tab=deploy`);
     } catch (err: any) {
       console.error('Generation error:', err);
       updateProject(projectId, { status: 'error' });
@@ -188,7 +235,6 @@ const CreateBackend = () => {
       if (analysisError) throw analysisError;
       setAnalysis(analysisData);
 
-      toast.info('Generating backend...');
       const genPrompt = analysisData.prompt || `Generate a ${backendType} backend based on: ${JSON.stringify(analysisData, null, 2)}`;
       const projectId = crypto.randomUUID();
       const project: Project = {
@@ -213,7 +259,7 @@ const CreateBackend = () => {
       if (error) throw error;
       updateProject(projectId, { result: data.result, status: 'ready', name: data.projectName || project.name });
       toast.success('Backend generated!');
-      navigate(`/project/${projectId}`);
+      navigate(`/project/${projectId}?tab=deploy`);
     } catch (err: any) {
       console.error('Error:', err);
       toast.error(err.message || 'Failed to analyze/generate.');
@@ -223,6 +269,7 @@ const CreateBackend = () => {
 
   return (
     <DashboardLayout>
+      {loading && <GenerationProgress />}
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold mb-1">Generate Backend</h1>
         <p className="text-muted-foreground text-sm mb-8">
