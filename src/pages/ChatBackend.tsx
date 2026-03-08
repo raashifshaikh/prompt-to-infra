@@ -354,84 +354,51 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
   };
 
   const msgVariants = {
-    hidden: { opacity: 0, y: 12 },
-    visible: { opacity: 1, y: 0, transition: { duration: 0.3, ease: "easeOut" as const } },
+    hidden: { opacity: 0, y: 8 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.25, ease: "easeOut" as const } },
   };
 
   return (
     <DashboardLayout>
       <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-4rem)]">
-        {/* Frosted Glass Header */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="flex items-center gap-3.5 py-5 px-1 border-b border-border/50"
-        >
-          <div className="h-10 w-10 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 backdrop-blur-sm flex items-center justify-center ring-1 ring-primary/20">
-            <Bot className="h-5 w-5 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight">AI Architect</h1>
-            <p className="text-xs text-muted-foreground">Describe your app, attach files, or paste a GitHub repo.</p>
-          </div>
-        </motion.div>
+        {/* Minimal Header */}
+        <div className="flex items-center gap-2 py-4 px-1">
+          <h1 className="text-base font-semibold tracking-tight text-foreground">AI Architect</h1>
+          <span className="text-xs text-muted-foreground">·</span>
+          <span className="text-xs text-muted-foreground">Design your backend</span>
+        </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto py-6 space-y-5 scroll-smooth">
+        <div className="flex-1 overflow-y-auto py-4 space-y-4 scroll-smooth">
           <AnimatePresence>
             {messages.length === 0 && (
               <motion.div
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.4 }}
-                className="text-center py-20 space-y-6"
+                className="text-center py-24 space-y-5"
               >
-                <div className="h-20 w-20 rounded-[1.5rem] bg-gradient-to-br from-primary/15 to-accent/15 flex items-center justify-center mx-auto ring-1 ring-primary/10">
-                  <Sparkles className="h-9 w-9 text-primary" />
-                </div>
                 <div className="space-y-2">
-                  <h2 className="text-2xl font-semibold tracking-tight">What are you building?</h2>
-                  <p className="text-muted-foreground max-w-md mx-auto text-sm leading-relaxed">
-                    Describe your app, upload project files, or paste a GitHub repo — I'll architect the perfect backend.
+                  <h2 className="text-xl font-semibold tracking-tight text-foreground">What are you building?</h2>
+                  <p className="text-muted-foreground max-w-sm mx-auto text-sm">
+                    Describe your app or attach project files.
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2 justify-center max-w-lg mx-auto pt-1">
+                <div className="flex flex-wrap gap-2 justify-center max-w-md mx-auto">
                   {[
-                    'E-commerce with product images',
+                    'E-commerce with images',
                     'SaaS with subscriptions',
-                    'Social media with messaging',
-                    'Healthcare patient portal',
-                    'Banking multi-currency system',
+                    'Social media app',
+                    'Patient portal',
                   ].map(s => (
-                    <motion.button
+                    <button
                       key={s}
-                      whileHover={{ scale: 1.03 }}
-                      whileTap={{ scale: 0.97 }}
                       onClick={() => { setInput(s); inputRef.current?.focus(); }}
-                      className="text-xs px-4 py-2 rounded-full border border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all text-muted-foreground hover:text-foreground"
+                      className="text-xs px-3.5 py-1.5 rounded-full border border-border bg-card hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
                     >
                       {s}
-                    </motion.button>
+                    </button>
                   ))}
-                </div>
-                <div className="flex gap-3 justify-center pt-3">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowAttachPanel(true)}
-                    className="flex items-center gap-2 text-xs px-5 py-2.5 rounded-xl border border-dashed border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all text-muted-foreground hover:text-foreground"
-                  >
-                    <FileUp className="h-4 w-4" /> Upload Files
-                  </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => setShowAttachPanel(true)}
-                    className="flex items-center gap-2 text-xs px-5 py-2.5 rounded-xl border border-dashed border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all text-muted-foreground hover:text-foreground"
-                  >
-                    <Github className="h-4 w-4" /> Import from GitHub
-                  </motion.button>
                 </div>
               </motion.div>
             )}
@@ -443,51 +410,37 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
               variants={msgVariants}
               initial="hidden"
               animate="visible"
-              className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {msg.role === 'assistant' && (
-                <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary/15 to-accent/15 flex items-center justify-center shrink-0 mt-0.5 ring-1 ring-primary/10">
-                  <Bot className="h-4 w-4 text-primary" />
-                </div>
-              )}
-              <div className={`max-w-[85%] sm:max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
+              <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm ${
                 msg.role === 'user'
-                  ? 'bg-primary text-primary-foreground rounded-br-md'
-                  : 'bg-card border border-border/50 shadow-sm rounded-bl-md'
+                  ? 'bg-[hsl(30,25%,93%)] dark:bg-[hsl(30,10%,20%)] text-foreground rounded-br-sm'
+                  : 'bg-card border border-border rounded-bl-sm'
               }`}>
                 {msg.role === 'assistant' ? renderMessageContent(msg.content) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
                 )}
               </div>
-              {msg.role === 'user' && (
-                <div className="h-8 w-8 rounded-xl bg-secondary flex items-center justify-center shrink-0 mt-0.5">
-                  <User className="h-4 w-4 text-secondary-foreground" />
-                </div>
-              )}
             </motion.div>
           ))}
 
-          {/* Loading indicator */}
+          {/* Thinking indicator */}
           {isLoading && messages[messages.length - 1]?.role === 'user' && (
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex gap-3"
+              className="flex justify-start"
             >
-              <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-primary/15 to-accent/15 flex items-center justify-center shrink-0 ring-1 ring-primary/10">
-                <Bot className="h-4 w-4 text-primary" />
-              </div>
-              <div className="bg-card border border-border/50 shadow-sm rounded-2xl rounded-bl-md px-4 py-3">
+              <div className="bg-card border border-border rounded-2xl rounded-bl-sm px-4 py-3">
                 {isAnalyzing ? (
-                  <div className="flex items-center gap-2.5 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
-                    <span>Deep-analyzing your project…</span>
+                    <span>Analyzing your project…</span>
                   </div>
                 ) : (
-                  <div className="flex gap-1.5 items-center py-1">
-                    <span className="h-2 w-2 rounded-full bg-primary/50 animate-pulse" />
-                    <span className="h-2 w-2 rounded-full bg-primary/50 animate-pulse" style={{ animationDelay: '200ms' }} />
-                    <span className="h-2 w-2 rounded-full bg-primary/50 animate-pulse" style={{ animationDelay: '400ms' }} />
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                    <span>Thinking…</span>
                   </div>
                 )}
               </div>
@@ -498,37 +451,36 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
           <AnimatePresence>
             {plan && (
               <motion.div
-                initial={{ opacity: 0, y: 16, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                transition={{ duration: 0.4, ease: [0.25, 0.46, 0.45, 0.94] }}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3 }}
               >
-                <Card className="border-primary/20 bg-card/80 backdrop-blur-sm shadow-lg shadow-primary/5 overflow-hidden">
-                  <div className="h-1 bg-gradient-to-r from-primary via-accent to-primary" />
-                  <CardContent className="p-6 space-y-5">
-                    <div className="flex items-center gap-2.5">
-                      <CheckCircle2 className="h-5 w-5 text-primary" />
-                      <h3 className="font-semibold tracking-tight">Ready to Generate: {plan.appName}</h3>
-                      <Badge variant="outline" className="ml-auto text-[10px] font-medium">{plan.complexity}</Badge>
+                <Card className="border-border bg-card overflow-hidden">
+                  <CardContent className="p-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      <h3 className="text-sm font-semibold tracking-tight">{plan.appName}</h3>
+                      <Badge variant="outline" className="ml-auto text-[10px]">{plan.complexity}</Badge>
                     </div>
-                    <p className="text-sm text-muted-foreground leading-relaxed">{plan.description}</p>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{plan.description}</p>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <h4 className="text-xs font-medium text-muted-foreground mb-2">Tables ({plan.estimatedTableCount})</h4>
-                        <div className="flex flex-wrap gap-1.5">
-                          {plan.tables.slice(0, 12).map(t => (
-                            <Badge key={t} variant="outline" className="text-[10px] font-mono bg-muted/30">
+                        <h4 className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Tables ({plan.estimatedTableCount})</h4>
+                        <div className="flex flex-wrap gap-1">
+                          {plan.tables.slice(0, 10).map(t => (
+                            <Badge key={t} variant="outline" className="text-[10px] font-mono">
                               <Database className="h-2.5 w-2.5 mr-0.5" />{t}
                             </Badge>
                           ))}
-                          {plan.tables.length > 12 && (
-                            <Badge variant="outline" className="text-[10px]">+{plan.tables.length - 12} more</Badge>
+                          {plan.tables.length > 10 && (
+                            <Badge variant="outline" className="text-[10px]">+{plan.tables.length - 10}</Badge>
                           )}
                         </div>
                       </div>
                       <div>
-                        <h4 className="text-xs font-medium text-muted-foreground mb-2">Features</h4>
-                        <div className="flex flex-wrap gap-1.5">
+                        <h4 className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Features</h4>
+                        <div className="flex flex-wrap gap-1">
                           {plan.features.map(f => (
                             <Badge key={f} variant="secondary" className="text-[10px]">{f}</Badge>
                           ))}
@@ -538,10 +490,10 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
 
                     {plan.storageBuckets.length > 0 && (
                       <div>
-                        <h4 className="text-xs font-medium text-muted-foreground mb-2">Storage</h4>
-                        <div className="flex gap-1.5 flex-wrap">
+                        <h4 className="text-[10px] font-medium text-muted-foreground mb-1.5 uppercase tracking-wider">Storage</h4>
+                        <div className="flex gap-1 flex-wrap">
                           {plan.storageBuckets.map(b => (
-                            <Badge key={b} variant="outline" className="text-[10px] bg-muted/30">
+                            <Badge key={b} variant="outline" className="text-[10px]">
                               <ImageIcon className="h-2.5 w-2.5 mr-0.5" />{b}
                             </Badge>
                           ))}
@@ -549,11 +501,11 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
                       </div>
                     )}
 
-                    <Button onClick={handleGenerate} disabled={isGenerating} className="w-full h-11 rounded-xl text-sm font-medium">
+                    <Button onClick={handleGenerate} disabled={isGenerating} className="w-full h-10 rounded-xl text-sm font-medium">
                       {isGenerating ? (
-                        <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Generating Schema…</>
+                        <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Generating…</>
                       ) : (
-                        <><Sparkles className="h-4 w-4 mr-2" /> Generate Backend <ArrowRight className="h-4 w-4 ml-2" /></>
+                        <><Sparkles className="h-4 w-4 mr-2" /> Generate Backend <ArrowRight className="h-4 w-4 ml-1" /></>
                       )}
                     </Button>
                   </CardContent>
@@ -569,55 +521,44 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
         <AnimatePresence>
           {showAttachPanel && (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              transition={{ duration: 0.25 }}
-              className="border-t border-border/50 bg-card/80 backdrop-blur-lg"
+              exit={{ opacity: 0, y: 12 }}
+              transition={{ duration: 0.2 }}
+              className="border border-border rounded-xl bg-card mb-2 overflow-hidden"
             >
-              <div className="p-4 space-y-4">
+              <div className="p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium">Add Context</h3>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg" onClick={() => setShowAttachPanel(false)}>
+                  <span className="text-xs font-medium text-foreground">Add context</span>
+                  <button onClick={() => setShowAttachPanel(false)} className="text-muted-foreground hover:text-foreground transition-colors">
                     <X className="h-4 w-4" />
-                  </Button>
+                  </button>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <motion.button
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="flex flex-col items-center gap-2.5 p-5 rounded-xl border border-dashed border-border/60 hover:border-primary/40 hover:bg-primary/5 transition-all group"
+                    className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-muted transition-colors text-left"
                   >
-                    <div className="h-11 w-11 rounded-xl bg-muted/50 flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                      <FileUp className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                    <FileUp className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <p className="text-xs font-medium">Upload Files</p>
+                      <p className="text-[10px] text-muted-foreground">JS, TS, JSON, etc.</p>
                     </div>
-                    <div className="text-center">
-                      <p className="text-sm font-medium">Upload Files</p>
-                      <p className="text-[10px] text-muted-foreground">JS, TS, JSON, package.json, etc.</p>
+                  </button>
+                  <div className="flex flex-col gap-2 p-3 rounded-lg border border-border">
+                    <div className="flex items-center gap-2">
+                      <Github className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-xs font-medium">GitHub Repo</span>
                     </div>
-                  </motion.button>
-
-                  <div className="flex flex-col gap-3 p-5 rounded-xl border border-dashed border-border/60">
-                    <div className="flex items-center gap-2.5">
-                      <div className="h-11 w-11 rounded-xl bg-muted/50 flex items-center justify-center shrink-0">
-                        <Github className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">GitHub Repo</p>
-                        <p className="text-[10px] text-muted-foreground">Paste repository URL</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1.5">
                       <Input
                         value={githubUrl}
                         onChange={e => setGithubUrl(e.target.value)}
-                        placeholder="https://github.com/user/repo"
-                        className="text-xs h-9 rounded-lg"
+                        placeholder="github.com/user/repo"
+                        className="text-xs h-8 rounded-lg"
                         onKeyDown={e => e.key === 'Enter' && handleAddGithub()}
                       />
-                      <Button size="sm" className="h-9 px-4 text-xs rounded-lg" onClick={handleAddGithub} disabled={!githubUrl.trim()}>
+                      <Button size="sm" className="h-8 px-3 text-xs rounded-lg" onClick={handleAddGithub} disabled={!githubUrl.trim()}>
                         Add
                       </Button>
                     </div>
@@ -635,22 +576,18 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="flex gap-2 flex-wrap px-1 pt-2"
+              className="flex gap-1.5 flex-wrap px-1 pb-2"
             >
               {attachments.map((att, i) => (
                 <motion.div
                   key={i}
-                  initial={{ opacity: 0, scale: 0.9 }}
+                  initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="flex items-center gap-1.5 bg-card border border-border/50 rounded-lg px-3 py-1.5 text-xs shadow-sm"
+                  className="flex items-center gap-1.5 bg-muted rounded-lg px-2.5 py-1 text-xs"
                 >
-                  {att.type === 'github' ? (
-                    <Github className="h-3 w-3 text-muted-foreground" />
-                  ) : (
-                    <FileText className="h-3 w-3 text-muted-foreground" />
-                  )}
-                  <span className="max-w-[150px] truncate">{att.name}</span>
-                  <button onClick={() => removeAttachment(i)} className="opacity-50 hover:opacity-100 transition-opacity ml-0.5">
+                  {att.type === 'github' ? <Github className="h-3 w-3 text-muted-foreground" /> : <FileText className="h-3 w-3 text-muted-foreground" />}
+                  <span className="max-w-[140px] truncate text-foreground">{att.name}</span>
+                  <button onClick={() => removeAttachment(i)} className="text-muted-foreground hover:text-foreground transition-colors">
                     <X className="h-3 w-3" />
                   </button>
                 </motion.div>
@@ -669,28 +606,23 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
           onChange={handleFileSelect}
         />
 
-        {/* Input Area */}
-        <div className="border-t border-border/50 py-3 pb-4">
-          <div className="relative">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute left-2 bottom-2 h-9 w-9 rounded-xl text-muted-foreground hover:text-foreground"
+        {/* Input Area — Lovable-style pill */}
+        <div className="pb-4 pt-2">
+          <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2">
+            <button
               onClick={() => setShowAttachPanel(prev => !prev)}
               disabled={isLoading || isGenerating}
+              className="flex-shrink-0 h-8 w-8 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
             >
-              <Paperclip className="h-4 w-4" />
-            </Button>
+              <Plus className="h-4 w-4" />
+            </button>
             <textarea
               ref={inputRef}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={attachments.length > 0
-                ? "Add instructions for attached files, then press Enter…"
-                : "Describe your app, or click 📎 to attach…"
-              }
-              className="flex w-full rounded-xl border border-border/50 bg-card/60 backdrop-blur-sm pl-12 pr-12 py-3.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-h-[52px] max-h-[160px] resize-none"
+              placeholder="Ask AI Architect..."
+              className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground focus:outline-none resize-none min-h-[36px] max-h-[120px] py-2 px-1"
               rows={1}
               disabled={isLoading || isGenerating}
             />
@@ -698,13 +630,13 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
               size="icon"
               onClick={handleSend}
               disabled={(!input.trim() && attachments.length === 0) || isLoading || isGenerating}
-              className="absolute right-2 bottom-2 h-9 w-9 rounded-xl"
+              className="flex-shrink-0 h-8 w-8 rounded-lg"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-2 text-center opacity-60">
-            Enter to send · Shift+Enter for new line · 📎 Attach files or GitHub repo
+          <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
+            Enter to send · Shift+Enter for new line
           </p>
         </div>
       </div>
