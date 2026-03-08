@@ -5,24 +5,11 @@ export interface TableColumn {
   default?: string;
   primary_key?: boolean;
   references?: string;
-  on_delete?: 'CASCADE' | 'SET NULL' | 'RESTRICT';
-  unique?: boolean;
 }
 
 export interface DatabaseTable {
   name: string;
   columns: TableColumn[];
-}
-
-export interface EnumType {
-  name: string;
-  values: string[];
-}
-
-export interface IndexDef {
-  table: string;
-  columns: string[];
-  unique: boolean;
 }
 
 export interface ApiRoute {
@@ -48,8 +35,6 @@ export interface GenerationResult {
     roles: string[];
   };
   features: string[];
-  enums?: EnumType[];
-  indexes?: IndexDef[];
   dockerfile?: string;
   dockerCompose?: string;
   envTemplate?: string;
