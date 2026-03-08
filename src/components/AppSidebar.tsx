@@ -1,4 +1,4 @@
-import { FolderOpen, PlusCircle, Settings, Home, BookOpen } from 'lucide-react';
+import { FolderOpen, PlusCircle, Settings, Home, BookOpen, MessageSquare } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
@@ -17,6 +17,7 @@ import {
 const items = [
   { title: 'Home', url: '/', icon: Home },
   { title: 'Projects', url: '/dashboard', icon: FolderOpen },
+  { title: 'AI Chat', url: '/chat', icon: MessageSquare },
   { title: 'Create New', url: '/create', icon: PlusCircle },
   
   

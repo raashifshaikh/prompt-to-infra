@@ -36,7 +36,7 @@ const Landing = () => {
             <Button
               size="lg"
               className="h-12 px-8 text-base font-semibold"
-              onClick={() => navigate('/dashboard')}
+              onClick={() => navigate('/chat')}
             >
               Start Building
             </Button>

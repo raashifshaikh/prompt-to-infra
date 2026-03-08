@@ -130,6 +130,52 @@ You MUST respond with ONLY valid JSON matching this exact schema:
   }
 }
 
+## DOMAIN-SPECIFIC PATTERNS (auto-detect from prompt):
+
+### BANKING/FINTECH:
+- accounts (id, user_id, account_number unique, account_type enum, currency char(3), balance numeric(15,2), available_balance, is_active, opened_at, closed_at)
+- transactions (id, account_id FK, type enum credit/debit, amount, currency, balance_after, description, reference_number unique, category, metadata jsonb)
+- transfers (id, from_account_id FK, to_account_id FK, amount, currency, exchange_rate numeric(10,6), status enum, initiated_by FK users, approved_by FK users nullable)
+- Double-entry: ALWAYS create ledger_entries with debit_account_id + credit_account_id + amount for every transaction
+- kyc_documents (id, user_id FK, document_type enum, file_path, file_name, verification_status enum, verified_by, verified_at, expires_at)
+- loan_applications, loan_payments, interest_rates, currency_exchange_rates
+- beneficiaries, standing_orders, card_management
+- compliance_logs (action, entity_type, entity_id, old_value jsonb, new_value jsonb, ip_address, user_agent)
+
+### HEALTHCARE:
+- patients (id, user_id FK, medical_record_number unique, date_of_birth, blood_type, allergies jsonb, emergency_contact jsonb)
+- appointments (patient_id FK, doctor_id FK, scheduled_at, duration_minutes, status enum, notes, room)
+- medical_records (patient_id FK, doctor_id FK, diagnosis, treatment, prescriptions jsonb, attachments, is_confidential boolean)
+- prescriptions, lab_results, insurance_claims, billing_invoices
+- HIPAA audit trail: log ALL reads/writes to medical data
+
+### SAAS:
+- tenants (id, name, slug unique, plan enum, settings jsonb, max_users integer)
+- subscriptions (tenant_id FK, plan_id FK, status enum, current_period_start, current_period_end, cancel_at)
+- invoices (tenant_id FK, amount, currency, status enum, paid_at, stripe_invoice_id)
+- usage_metrics (tenant_id FK, metric_name, value numeric, recorded_at)
+- feature_flags (name unique, description, is_enabled, rollout_percentage integer)
+- api_keys (tenant_id FK, key_hash text, name, permissions jsonb, last_used_at, expires_at)
+- webhooks (tenant_id FK, url, events jsonb, secret_hash, is_active)
+
+### SOCIAL:
+- posts (user_id FK, content text, media_urls jsonb, visibility enum, like_count integer default 0, comment_count default 0)
+- comments (post_id FK, user_id FK, parent_comment_id FK self-ref nullable, content, like_count default 0)
+- likes (user_id FK, likeable_type text, likeable_id uuid) — polymorphic
+- follows (follower_id FK users, following_id FK users, status enum pending/accepted/blocked)
+- messages + message_threads for DMs
+- stories (user_id FK, media_url, expires_at, view_count default 0)
+- reports (reporter_id FK, reported_type, reported_id, reason enum, status enum, resolved_by, resolved_at)
+
+### EDUCATION:
+- courses, lessons, enrollments, quizzes, quiz_questions, quiz_attempts, grades, certificates
+
+### REAL ESTATE:
+- properties, listings, agents, viewings, offers, contracts, property_documents
+
+### LOGISTICS:
+- warehouses, shipments, shipment_items, tracking_events, routes, drivers, delivery_zones
+
 ## TABLE ORDERING:
 Tables MUST be ordered so that referenced tables come BEFORE tables that reference them. e.g. \`users\` before \`profiles\`, \`profiles\` before \`products\`, \`products\` before \`product_images\`.
 
@@ -148,9 +194,10 @@ For local/cloud: show REST API with fetch + multipart form uploads
 
 IMPORTANT: 
 - Generate a proper Dockerfile, docker-compose.yml, and .env.example tailored to the backend type
-- Be thorough — generate 8-20 tables for complex apps
+- Be thorough — generate 8-20 tables for complex apps, 20-40 for enterprise domains like banking/healthcare
 - ALWAYS include storage buckets when the app deals with images, files, PDFs, or any media
 - ALWAYS include file upload routes and integration guide steps for uploads
+- Auto-detect the domain from the prompt and apply the matching patterns above
 - Think like a senior engineer designing for production`;
 
 serve(async (req) => {

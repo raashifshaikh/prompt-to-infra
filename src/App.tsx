@@ -8,7 +8,7 @@ import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import CreateBackend from "./pages/CreateBackend";
 import ProjectView from "./pages/ProjectView";
-
+import ChatBackend from "./pages/ChatBackend";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 import AboutPage from "./pages/AboutPage";
@@ -27,6 +27,7 @@ const App = () => (
             <Route path="/" element={<Landing />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/create" element={<CreateBackend />} />
+            <Route path="/chat" element={<ChatBackend />} />
             <Route path="/project/:id" element={<ProjectView />} />
             
             
