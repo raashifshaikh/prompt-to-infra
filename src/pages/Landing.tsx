@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Database, Server, Cloud, Shield, Zap } from 'lucide-react';
+import logo from '@/assets/logo.png';
 
 const features = [
   { icon: Zap, title: 'AI Backend Generation', desc: 'Describe your backend in plain English. Get a complete schema, routes, and config instantly.' },
