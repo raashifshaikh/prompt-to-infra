@@ -36,6 +36,17 @@ const ProjectView = () => {
 
   const result = project.result;
 
+  // Count relations for the ER diagram tab label
+  const relations = useMemo(() => {
+    if (!result?.tables) return [];
+    return result.tables.flatMap(t =>
+      t.columns.filter(c => c.references).map(c => ({
+        from: t.name,
+        to: c.references!.match(/^(\w+)\(/)?.[1] || '',
+      }))
+    );
+  }, [result?.tables]);
+
   const handleUpdateProject = (updates: Partial<typeof project>) => {
     updateProject(project.id, updates);
   };
