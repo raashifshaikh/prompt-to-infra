@@ -5,10 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Check, Database, Flame, Copy, Download, ExternalLink, X, CheckCircle2, XCircle, AlertCircle, Zap } from 'lucide-react';
+import { Loader2, Check, Database, Flame, Copy, Download, ExternalLink, CheckCircle2, XCircle, AlertCircle, Train } from 'lucide-react';
 import { DatabaseTable, Project } from '@/types/project';
-import { getSelectedSupabaseProject } from '@/pages/ConnectSupabase';
-import { useNavigate } from 'react-router-dom';
 
 interface DeployTabProps {
   project: Project;
@@ -23,13 +21,10 @@ interface MigrationResult {
 
 const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
   const result = project.result;
-  const navigate = useNavigate();
-  const connectedProject = getSelectedSupabaseProject();
 
   // Supabase connection
   const [dbUrl, setDbUrl] = useState('');
   const [applyingSupabase, setApplyingSupabase] = useState(false);
-  const [applyingViaApi, setApplyingViaApi] = useState(false);
   const [supabaseSQL, setSupabaseSQL] = useState('');
   const [migrationResults, setMigrationResults] = useState<MigrationResult[]>([]);
   const [migrationError, setMigrationError] = useState('');
@@ -39,24 +34,13 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
   const [applyingFirebase, setApplyingFirebase] = useState(false);
   const [firebaseOutput, setFirebaseOutput] = useState<{ rules?: string; indexes?: string } | null>(null);
 
-  // Fly.io deployment
-  const [deployingFly, setDeployingFly] = useState(false);
+  // Railway deployment
+  const [deployingRailway, setDeployingRailway] = useState(false);
 
   const handleApplySupabase = async () => {
-    if (!dbUrl) {
-      toast.error('Please enter your database connection URL');
-      return;
-    }
-    if (!result?.tables) {
-      toast.error('No tables to apply');
-      return;
-    }
-
-    // Validate port guidance
-    if (dbUrl.includes(':6543')) {
-      toast.error('Use port 5432 (direct connection) instead of 6543 (pooler) for schema migrations');
-      return;
-    }
+    if (!dbUrl) { toast.error('Please enter your database connection URL'); return; }
+    if (!result?.tables) { toast.error('No tables to apply'); return; }
+    if (dbUrl.includes(':6543')) { toast.error('Use port 5432 (direct connection) instead of 6543 (pooler) for schema migrations'); return; }
 
     setApplyingSupabase(true);
     setMigrationResults([]);
@@ -66,16 +50,13 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
       const { data, error } = await supabase.functions.invoke('apply-supabase', {
         body: { tables: result.tables, dbUrl },
       });
-
       if (error) throw error;
 
       setSupabaseSQL(data.sql || '');
       setMigrationResults(data.results || []);
 
       if (data.success) {
-        onUpdateProject({
-          supabaseConfig: { url: '', anonKey: '', serviceRoleKey: '', connected: true },
-        });
+        onUpdateProject({ supabaseConfig: { url: '', anonKey: '', serviceRoleKey: '', connected: true } });
         toast.success(data.message || 'Schema applied successfully!');
       } else {
         setMigrationError(data.error || 'Migration failed');
@@ -89,97 +70,19 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
     }
   };
 
-  // One-click apply via Management API
-  const handleApplyViaApi = async () => {
-    if (!connectedProject) {
-      toast.error('No Supabase project connected');
-      return;
-    }
-    if (!result?.tables) {
-      toast.error('No tables to apply');
-      return;
-    }
-
-    const authData = localStorage.getItem('backendforge_supabase_oauth');
-    if (!authData) {
-      toast.error('Supabase OAuth session expired. Please reconnect.');
-      return;
-    }
-
-    const { accessToken } = JSON.parse(authData);
-    setApplyingViaApi(true);
-    setMigrationResults([]);
-    setMigrationError('');
-
-    try {
-      // Generate SQL from tables
-      const sqlStatements = result.tables.map((table) => {
-        const cols = table.columns.map((col) => {
-          let def = `"${col.name}" ${col.type}`;
-          if (col.primary_key) def += ' PRIMARY KEY';
-          if (!col.nullable && !col.primary_key) def += ' NOT NULL';
-          if (col.default) def += ` DEFAULT ${col.default}`;
-          return def;
-        }).join(',\n  ');
-        return `CREATE TABLE IF NOT EXISTS "${table.name}" (\n  ${cols}\n);`;
-      }).join('\n\n');
-
-      // Apply via Management API
-      const { data, error } = await supabase.functions.invoke('supabase-manage', {
-        body: {
-          action: 'run-sql',
-          accessToken,
-          projectRef: connectedProject.ref,
-          sql: sqlStatements,
-        },
-      });
-
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      setSupabaseSQL(sqlStatements);
-      onUpdateProject({
-        supabaseConfig: {
-          url: connectedProject.url,
-          anonKey: connectedProject.anonKey,
-          serviceRoleKey: '',
-          connected: true,
-        },
-      });
-      toast.success(`Schema applied to "${connectedProject.name}" via Management API!`);
-    } catch (err: any) {
-      setMigrationError(err.message || 'Failed to apply schema via API');
-      toast.error(err.message || 'Failed to apply schema');
-    } finally {
-      setApplyingViaApi(false);
-    }
-  };
-
   const handleApplyFirebase = async () => {
-    if (!fbProjectId) {
-      toast.error('Please enter your Firebase Project ID');
-      return;
-    }
-    if (!result?.tables) {
-      toast.error('No tables to generate rules for');
-      return;
-    }
+    if (!fbProjectId) { toast.error('Please enter your Firebase Project ID'); return; }
+    if (!result?.tables) { toast.error('No tables to generate rules for'); return; }
 
     setApplyingFirebase(true);
     try {
       const { data, error } = await supabase.functions.invoke('apply-firebase', {
         body: { tables: result.tables, firebaseProjectId: fbProjectId },
       });
-
       if (error) throw error;
 
-      setFirebaseOutput({
-        rules: data.firestoreRules,
-        indexes: JSON.stringify(data.firestoreIndexes, null, 2),
-      });
-      onUpdateProject({
-        firebaseConfig: { projectId: fbProjectId, serviceAccountJson: '', connected: true },
-      });
+      setFirebaseOutput({ rules: data.firestoreRules, indexes: JSON.stringify(data.firestoreIndexes, null, 2) });
+      onUpdateProject({ firebaseConfig: { projectId: fbProjectId, serviceAccountJson: '', connected: true } });
       toast.success('Firebase configs generated!');
     } catch (err: any) {
       toast.error(err.message || 'Failed to generate Firebase config');
@@ -188,37 +91,54 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
     }
   };
 
-  const handleDeployFlyio = async () => {
-    setDeployingFly(true);
+  const handleDeployRailway = async () => {
+    setDeployingRailway(true);
     try {
-      const { data: createData, error: createErr } = await supabase.functions.invoke('deploy-flyio', {
-        body: { action: 'create-app', projectName: project.name },
+      // Step 1: Create project
+      toast.info('Creating Railway project...');
+      const { data: createData, error: createErr } = await supabase.functions.invoke('deploy-railway', {
+        body: { action: 'create-project', projectName: project.name },
       });
       if (createErr) throw createErr;
+      if (createData.error) throw new Error(createData.error);
 
-      const appName = createData.appName;
+      const railwayProjectId = createData.projectId;
       onUpdateProject({
-        flyDeployment: { appName, url: createData.url, status: 'creating' },
+        railwayDeployment: {
+          projectId: railwayProjectId,
+          projectName: createData.projectName,
+          url: createData.url,
+          status: 'creating',
+        },
       });
-      toast.success(`App "${appName}" created on Fly.io!`);
 
-      const { data: deployData, error: deployErr } = await supabase.functions.invoke('deploy-flyio', {
-        body: { action: 'deploy', appName },
+      // Step 2: Deploy a service
+      toast.info('Deploying service...');
+      const { data: deployData, error: deployErr } = await supabase.functions.invoke('deploy-railway', {
+        body: { action: 'deploy-service', projectId: railwayProjectId, serviceName: 'api' },
       });
       if (deployErr) throw deployErr;
+      if (deployData.error) throw new Error(deployData.error);
 
       onUpdateProject({
-        flyDeployment: { appName, url: deployData.url, status: 'running' },
+        railwayDeployment: {
+          projectId: railwayProjectId,
+          projectName: createData.projectName,
+          url: createData.url,
+          status: 'running',
+        },
         status: 'deployed',
       });
-      toast.success(`Deployed to ${deployData.url}`);
+      toast.success(`Deployed to Railway! Project: ${createData.projectName}`);
     } catch (err: any) {
-      toast.error(err.message || 'Fly.io deployment failed');
-      onUpdateProject({
-        flyDeployment: { ...project.flyDeployment!, status: 'failed' },
-      });
+      toast.error(err.message || 'Railway deployment failed');
+      if (project.railwayDeployment) {
+        onUpdateProject({
+          railwayDeployment: { ...project.railwayDeployment, status: 'failed' },
+        });
+      }
     } finally {
-      setDeployingFly(false);
+      setDeployingRailway(false);
     }
   };
 
@@ -249,68 +169,20 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* One-click apply via OAuth */}
-            {connectedProject ? (
-              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-primary" />
-                  <span className="text-sm font-medium">Connected: {connectedProject.name}</span>
-                  <Badge variant="outline" className="text-xs font-mono">{connectedProject.ref}</Badge>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Apply schema directly via Supabase Management API — no database URL needed.
-                </p>
-                <Button onClick={handleApplyViaApi} disabled={applyingViaApi} size="sm">
-                  {applyingViaApi ? (
-                    <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Applying...</>
-                  ) : (
-                    <><Zap className="h-3.5 w-3.5 mr-1.5" /> One-Click Apply</>
-                  )}
-                </Button>
-              </div>
-            ) : (
-              <div className="rounded-lg border border-dashed border-muted-foreground/30 p-4 space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  Connect your Supabase account for one-click schema deployment — no database URL needed.
-                </p>
-                <Button variant="outline" size="sm" onClick={() => navigate('/connect-supabase')}>
-                  <Database className="h-3.5 w-3.5 mr-1.5" /> Connect Supabase Account
-                </Button>
-              </div>
-            )}
-
-            {/* Manual fallback */}
-            <div className="border-t pt-4">
-              <p className="text-xs font-medium mb-2 text-muted-foreground">Or apply manually with a database URL:</p>
-              <Input
-                placeholder="postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
-                value={dbUrl}
-                onChange={(e) => setDbUrl(e.target.value)}
-                type="password"
-                className="font-mono text-xs"
-              />
-              <p className="text-xs text-muted-foreground mt-1.5">
-                Use the <strong>direct connection string</strong> (port 5432) from your Supabase project → Settings → Database.
-              </p>
-              <div className="flex items-center gap-2 mt-2">
-                <Button onClick={handleApplySupabase} disabled={applyingSupabase} size="sm" variant="outline">
-                  {applyingSupabase ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Database className="h-3.5 w-3.5 mr-1.5" />}
-                  Apply Schema
-                </Button>
-                {connectedProject && (
-                  <Button variant="ghost" size="sm" asChild>
-                    <a
-                      href={`https://supabase.com/dashboard/project/${connectedProject.ref}/sql/new`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
-                      Open SQL Editor
-                    </a>
-                  </Button>
-                )}
-              </div>
-            </div>
+            <Input
+              placeholder="postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
+              value={dbUrl}
+              onChange={(e) => setDbUrl(e.target.value)}
+              type="password"
+              className="font-mono text-xs"
+            />
+            <p className="text-xs text-muted-foreground">
+              Use the <strong>direct connection string</strong> (port 5432) from your Supabase project → Settings → Database.
+            </p>
+            <Button onClick={handleApplySupabase} disabled={applyingSupabase} size="sm">
+              {applyingSupabase ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Database className="h-3.5 w-3.5 mr-1.5" />}
+              Apply Schema
+            </Button>
 
             {/* Migration Progress */}
             {migrationResults.length > 0 && (
@@ -323,18 +195,13 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
                     ) : (
                       <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
                     )}
-                    <span className={r.success ? 'text-foreground' : 'text-destructive'}>
-                      {r.label}
-                    </span>
-                    {r.error && (
-                      <span className="text-muted-foreground truncate ml-1">— {r.error}</span>
-                    )}
+                    <span className={r.success ? 'text-foreground' : 'text-destructive'}>{r.label}</span>
+                    {r.error && <span className="text-muted-foreground truncate ml-1">— {r.error}</span>}
                   </div>
                 ))}
               </div>
             )}
 
-            {/* Migration Error */}
             {migrationError && !migrationResults.length && (
               <div className="mt-3 flex items-start gap-2 bg-destructive/10 text-destructive rounded-md p-3 text-xs">
                 <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
@@ -342,11 +209,10 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
               </div>
             )}
 
-            {/* Generated SQL */}
             {supabaseSQL && (
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-medium">Generated SQL (manual fallback)</h4>
+                  <h4 className="text-xs font-medium">Generated SQL</h4>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopy(supabaseSQL)}>
                       <Copy className="h-3.5 w-3.5" />
@@ -430,43 +296,45 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
         </Card>
       )}
 
-      {/* Fly.io Deployment */}
+      {/* Railway Deployment */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-sm flex items-center gap-2">
-            🚀 Deploy to Fly.io
-            {project.flyDeployment && (
-              <Badge variant={project.flyDeployment.status === 'running' ? 'default' : 'outline'} className="text-xs">
-                {project.flyDeployment.status}
+            <Train className="h-4 w-4" /> Deploy to Railway
+            {project.railwayDeployment && (
+              <Badge variant={project.railwayDeployment.status === 'running' ? 'default' : 'outline'} className="text-xs">
+                {project.railwayDeployment.status}
               </Badge>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {project.flyDeployment?.url && project.flyDeployment.status === 'running' && (
+          {project.railwayDeployment?.url && project.railwayDeployment.status === 'running' && (
             <div className="flex items-center gap-2 bg-muted/50 rounded-md p-3">
               <Check className="h-4 w-4 text-primary" />
-              <span className="text-sm font-mono">{project.flyDeployment.url}</span>
-              <Button variant="ghost" size="icon" className="h-7 w-7 ml-auto" onClick={() => handleCopy(project.flyDeployment!.url)}>
-                <Copy className="h-3.5 w-3.5" />
+              <span className="text-sm font-mono truncate">{project.railwayDeployment.url}</span>
+              <Button variant="ghost" size="icon" className="h-7 w-7 ml-auto shrink-0" asChild>
+                <a href={project.railwayDeployment.url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
               </Button>
             </div>
           )}
           <Button
-            onClick={handleDeployFlyio}
-            disabled={deployingFly || project.flyDeployment?.status === 'running'}
+            onClick={handleDeployRailway}
+            disabled={deployingRailway || project.railwayDeployment?.status === 'running'}
             size="sm"
           >
-            {deployingFly ? (
+            {deployingRailway ? (
               <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Deploying...</>
-            ) : project.flyDeployment?.status === 'running' ? (
+            ) : project.railwayDeployment?.status === 'running' ? (
               <><Check className="h-3.5 w-3.5 mr-1.5" /> Deployed</>
             ) : (
-              <>🚀 Deploy to Fly.io</>
+              <><Train className="h-3.5 w-3.5 mr-1.5" /> Deploy to Railway</>
             )}
           </Button>
           <p className="text-xs text-muted-foreground">
-            Creates a new Fly.io app and deploys your backend with a Docker container.
+            Creates a new Railway project and deploys your backend service.
           </p>
         </CardContent>
       </Card>

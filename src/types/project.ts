@@ -41,8 +41,9 @@ export interface GenerationResult {
   integrationGuide?: TutorialStep[];
 }
 
-export interface FlyDeployment {
-  appName: string;
+export interface RailwayDeployment {
+  projectId: string;
+  projectName: string;
   url: string;
   status: 'creating' | 'deploying' | 'running' | 'failed';
 }
@@ -57,6 +58,6 @@ export interface Project {
   status: 'generating' | 'ready' | 'deployed' | 'error';
   supabaseConfig?: { url: string; anonKey: string; serviceRoleKey: string; connected: boolean };
   firebaseConfig?: { projectId: string; serviceAccountJson: string; connected: boolean };
-  flyDeployment?: FlyDeployment;
+  railwayDeployment?: RailwayDeployment;
   repoSource?: { type: 'github' | 'upload'; url?: string; analyzedAt?: string };
 }

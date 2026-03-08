@@ -193,7 +193,7 @@ const ProjectView = () => {
                     {project.status === 'ready' && <p>[{new Date().toISOString()}] Generation complete — {result.tables.length} tables, {result.routes.length} routes</p>}
                     {project.supabaseConfig?.connected && <p>[{new Date().toISOString()}] Connected to Supabase: {project.supabaseConfig.url}</p>}
                     {project.firebaseConfig?.connected && <p>[{new Date().toISOString()}] Firebase config generated for: {project.firebaseConfig.projectId}</p>}
-                    {project.flyDeployment && <p>[{new Date().toISOString()}] Fly.io: {project.flyDeployment.appName} — {project.flyDeployment.status}</p>}
+                    {project.railwayDeployment && <p>[{new Date().toISOString()}] Railway: {project.railwayDeployment.projectName} — {project.railwayDeployment.status}</p>}
                     {project.status === 'deployed' && <p>[{new Date().toISOString()}] Deployment complete</p>}
                   </div>
                 </CardContent>
