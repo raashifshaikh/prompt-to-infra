@@ -5,8 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Check, Database, Flame, Copy, Download, ExternalLink, X, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Loader2, Check, Database, Flame, Copy, Download, ExternalLink, X, CheckCircle2, XCircle, AlertCircle, Zap } from 'lucide-react';
 import { DatabaseTable, Project } from '@/types/project';
+import { getSelectedSupabaseProject } from '@/pages/ConnectSupabase';
+import { useNavigate } from 'react-router-dom';
 
 interface DeployTabProps {
   project: Project;
