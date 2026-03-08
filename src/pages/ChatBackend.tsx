@@ -168,7 +168,7 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
         backendType: 'supabase' as const,
         result,
         createdAt: new Date().toISOString(),
-        status: 'complete' as const,
+        status: 'ready' as const,
       };
 
       addProject(newProject);
