@@ -19,6 +19,7 @@ const items = [
   { title: 'Create New', url: '/create', icon: PlusCircle },
   { title: 'Import Project', url: '/import', icon: FileUp },
   { title: 'Settings', url: '/settings', icon: Settings },
+  { title: 'About', url: '/about', icon: BookOpen },
 ];
 
 export function AppSidebar() {

@@ -11,6 +11,7 @@ import ProjectView from "./pages/ProjectView";
 import ImportProject from "./pages/ImportProject";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
+import AboutPage from "./pages/AboutPage";
 
 const queryClient = new QueryClient();
 
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/project/:id" element={<ProjectView />} />
             <Route path="/import" element={<ImportProject />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/about" element={<AboutPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
