@@ -17,6 +17,8 @@ const ProjectView = () => {
   const [searchParams] = useSearchParams();
   const { getProject, updateProject } = useProjects();
   const project = getProject(id!);
+  const [generatedImages, setGeneratedImages] = useState<Record<string, string[]>>({});
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
 
   const defaultTab = searchParams.get('tab') === 'deploy' ? 'deploy' : 'schema';
 
