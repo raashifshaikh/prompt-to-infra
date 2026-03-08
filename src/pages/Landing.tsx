@@ -61,7 +61,7 @@ const Landing = () => {
             >
               {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex text-muted-foreground text-[13px]" onClick={() => navigate('/dashboard')}>
+            <Button variant="ghost" size="sm" className="hidden sm:inline-flex text-muted-foreground text-[13px]" onClick={() => navigate('/auth')}>
               Login
             </Button>
             <Button size="sm" className="font-semibold text-[13px] rounded-full px-5" onClick={() => navigate('/chat')}>
