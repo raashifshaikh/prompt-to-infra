@@ -1,4 +1,5 @@
 import { FolderOpen, PlusCircle, Settings, Home, BookOpen } from 'lucide-react';
+import logo from '@/assets/logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
 import {
@@ -34,9 +35,10 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>
+            <img src={logo} alt="Bytebase" className="h-6 w-6" />
             {!collapsed && (
               <span className="text-primary font-bold tracking-tight">
-                Backend<span className="text-foreground">Forge</span>
+                Byte<span className="text-foreground">base</span>
               </span>
             )}
           </SidebarGroupLabel>

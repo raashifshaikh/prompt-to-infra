@@ -80,7 +80,7 @@ const AboutPage = () => {
             Prompt-to-Infrastructure Platform
           </div>
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-4">
-            Backend<span className="text-primary">Forge</span>
+            Byte<span className="text-primary">base</span>
           </h1>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-6 leading-relaxed">
             AI-powered backend generator that takes plain English prompts and produces complete database schemas, API routes, auth configs, Docker files, and deployment scripts.
@@ -97,7 +97,7 @@ const AboutPage = () => {
         {/* What You Can Do */}
         <section>
           <h2 className="text-2xl font-bold mb-2">What You Can Do</h2>
-          <p className="text-muted-foreground mb-6">Everything BackendForge offers — from AI generation to production deployment.</p>
+          <p className="text-muted-foreground mb-6"><p className="text-muted-foreground mb-6">Everything Bytebase offers — from AI generation to production deployment.</p> — from AI generation to production deployment.</p>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
             {features.map((f) => (
               <Card key={f.title} className="bg-card/50 border-border/50 hover:border-primary/30 transition-colors">
@@ -149,7 +149,7 @@ const AboutPage = () => {
         {/* Development Timeline */}
         <section>
           <h2 className="text-2xl font-bold mb-2">Development Timeline</h2>
-          <p className="text-muted-foreground mb-6">How BackendForge was built, phase by phase.</p>
+          <p className="text-muted-foreground mb-6"><p className="text-muted-foreground mb-6">How Bytebase was built, phase by phase.</p>, phase by phase.</p>
           <div className="relative">
             <div className="absolute left-[19px] top-0 bottom-0 w-px bg-border/50" />
             <div className="space-y-6">
@@ -172,7 +172,7 @@ const AboutPage = () => {
         {/* Edge Functions Reference */}
         <section>
           <h2 className="text-2xl font-bold mb-2">Edge Functions Reference</h2>
-          <p className="text-muted-foreground mb-6">All 7 Supabase Edge Functions powering BackendForge.</p>
+          <p className="text-muted-foreground mb-6">All 7 Supabase Edge Functions <p className="text-muted-foreground mb-6">All 7 Supabase Edge Functions powering Bytebase.</p>.</p>
           <Card className="bg-card/50 border-border/50 overflow-hidden">
             <CardContent className="p-0">
               <table className="w-full text-sm">
