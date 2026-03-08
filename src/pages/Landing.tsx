@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   Database, Server, Cloud, Zap, Code2, Rocket,
   Upload, Brain, Layers, ArrowRight, GraduationCap,
-  Sun, Moon, Instagram
+  Sun, Moon, Instagram, Mail
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/components/ThemeProvider';
@@ -61,7 +61,7 @@ const Landing = () => {
             >
               {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex text-muted-foreground text-[13px]" onClick={() => navigate('/dashboard')}>
+            <Button variant="ghost" size="sm" className="hidden sm:inline-flex text-muted-foreground text-[13px]" onClick={() => navigate('/auth')}>
               Login
             </Button>
             <Button size="sm" className="font-semibold text-[13px] rounded-full px-5" onClick={() => navigate('/chat')}>
@@ -288,8 +288,12 @@ const Landing = () => {
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] mb-5">
               Ready to build your next big thing?
             </h2>
-            <p className="text-muted-foreground max-w-lg mx-auto mb-9 text-[15px]">
+            <p className="text-muted-foreground max-w-lg mx-auto mb-4 text-[15px]">
               Join 2,000+ developers turning ideas into production-ready full-stack applications in minutes.
+            </p>
+            <p className="text-sm text-muted-foreground mb-9">
+              Questions? Reach out at{' '}
+              <a href="mailto:raashifshaikh70@gmail.com" className="text-primary hover:underline">raashifshaikh70@gmail.com</a>
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Button size="lg" className="h-12 px-8 text-[15px] font-semibold rounded-full shadow-lg shadow-primary/20" onClick={() => navigate('/chat')}>
@@ -311,10 +315,12 @@ const Landing = () => {
             <span className="font-semibold text-sm">Bytebase</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-muted-foreground">
+            <a href="mailto:raashifshaikh70@gmail.com" className="hover:text-primary transition-colors duration-200 flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5" /> Contact
+            </a>
             <a href="https://www.instagram.com/_raashif?igsh=bm14Y2FpanVkbHdm" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors duration-200 flex items-center gap-1.5">
               <Instagram className="h-3.5 w-3.5" /> Raashif
             </a>
-            <a href="#" className="hover:text-foreground transition-colors duration-200">Twitter</a>
             <a href="#" className="hover:text-foreground transition-colors duration-200">GitHub</a>
             <a href="#" className="hover:text-foreground transition-colors duration-200">Privacy</a>
             <a href="#" className="hover:text-foreground transition-colors duration-200">Terms</a>
