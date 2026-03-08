@@ -348,6 +348,21 @@ const ProjectView = () => {
               </div>
             </TabsContent>
 
+            {/* ER Diagram Tab */}
+            <TabsContent value="diagram">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium">Entity Relationship Diagram</h3>
+                    <p className="text-xs text-muted-foreground">
+                      {result.tables.length} tables · {relations.length} relationships · Drag to pan, scroll to zoom
+                    </p>
+                  </div>
+                </div>
+                <SchemaERDiagram tables={result.tables} />
+              </div>
+            </TabsContent>
+
             {/* Deploy & Tutorial Tab */}
             <TabsContent value="deploy">
               <DeployAndTutorial project={project} onUpdateProject={handleUpdateProject} />
