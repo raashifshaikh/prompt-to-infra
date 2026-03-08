@@ -8,6 +8,7 @@ import Landing from "./pages/Landing";
 import Dashboard from "./pages/Dashboard";
 import CreateBackend from "./pages/CreateBackend";
 import ProjectView from "./pages/ProjectView";
+import ImportProject from "./pages/ImportProject";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
@@ -25,6 +26,7 @@ const App = () => (
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/create" element={<CreateBackend />} />
             <Route path="/project/:id" element={<ProjectView />} />
+            <Route path="/import" element={<ImportProject />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

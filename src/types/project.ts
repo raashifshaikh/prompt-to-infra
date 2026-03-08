@@ -19,6 +19,13 @@ export interface ApiRoute {
   auth_required?: boolean;
 }
 
+export interface TutorialStep {
+  title: string;
+  description: string;
+  code: string;
+  language: string;
+}
+
 export interface GenerationResult {
   tables: DatabaseTable[];
   routes: ApiRoute[];
@@ -28,6 +35,16 @@ export interface GenerationResult {
     roles: string[];
   };
   features: string[];
+  dockerfile?: string;
+  dockerCompose?: string;
+  envTemplate?: string;
+  integrationGuide?: TutorialStep[];
+}
+
+export interface FlyDeployment {
+  appName: string;
+  url: string;
+  status: 'creating' | 'deploying' | 'running' | 'failed';
 }
 
 export interface Project {
@@ -38,4 +55,8 @@ export interface Project {
   result: GenerationResult | null;
   createdAt: string;
   status: 'generating' | 'ready' | 'deployed' | 'error';
+  supabaseConfig?: { url: string; anonKey: string; serviceRoleKey: string; connected: boolean };
+  firebaseConfig?: { projectId: string; serviceAccountJson: string; connected: boolean };
+  flyDeployment?: FlyDeployment;
+  repoSource?: { type: 'github' | 'upload'; url?: string; analyzedAt?: string };
 }

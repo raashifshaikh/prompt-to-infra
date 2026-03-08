@@ -5,3 +5,15 @@ verify_jwt = false
 
 [functions.backend-actions]
 verify_jwt = false
+
+[functions.apply-supabase]
+verify_jwt = false
+
+[functions.apply-firebase]
+verify_jwt = false
+
+[functions.deploy-flyio]
+verify_jwt = false
+
+[functions.analyze-repo]
+verify_jwt = false
