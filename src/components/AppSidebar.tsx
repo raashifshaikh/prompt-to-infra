@@ -17,6 +17,7 @@ import {
 const items = [
   { title: 'Home', url: '/', icon: Home },
   { title: 'Projects', url: '/dashboard', icon: FolderOpen },
+  { title: 'AI Chat', url: '/chat', icon: MessageSquare },
   { title: 'Create New', url: '/create', icon: PlusCircle },
   
   
