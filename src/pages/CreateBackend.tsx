@@ -77,7 +77,7 @@ const CreateBackend = () => {
   }, [searchParams, githubToken, exchangingToken]);
 
   const handleConnectGitHub = () => {
-    const redirectUri = 'https://prompt-to-infra.lovable.app/create';
+    const redirectUri = `${window.location.origin}/create`;
     const url = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo`;
     window.location.href = url;
   };
