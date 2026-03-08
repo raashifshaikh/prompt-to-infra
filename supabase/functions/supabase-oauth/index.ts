@@ -14,8 +14,8 @@ serve(async (req) => {
   try {
     const { code, redirectUri, action, refreshToken } = await req.json();
 
-    const clientId = Deno.env.get("SUPABASE_OAUTH_CLIENT_ID");
-    const clientSecret = Deno.env.get("SUPABASE_OAUTH_CLIENT_SECRET");
+    const clientId = Deno.env.get("SB_OAUTH_CLIENT_ID");
+    const clientSecret = Deno.env.get("SB_OAUTH_CLIENT_SECRET");
 
     if (!clientId || !clientSecret) {
       throw new Error("OAuth client credentials not configured");
