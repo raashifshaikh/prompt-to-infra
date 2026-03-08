@@ -246,7 +246,7 @@ const Landing = () => {
       </section>
 
       {/* Who It's For */}
-      <section className="border-t border-border/30">
+      <section id="audience" className="border-t border-border/30 scroll-mt-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-24 sm:py-32">
           <motion.h2
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
