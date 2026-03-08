@@ -135,7 +135,12 @@ function generateCreateTableSQL(table: DatabaseTable): string {
     if (!col.nullable && !col.primary_key) def += ' NOT NULL';
     if (col.default) def += ` DEFAULT ${col.default}`;
     if (col.references) {
-      def += ` REFERENCES public."${col.references.replace('(', '"(')}"`;
+      const refMatch = col.references.match(/^(\w+)\((\w+)\)$/);
+      if (refMatch) {
+        def += ` REFERENCES public."${refMatch[1]}"("${refMatch[2]}")`;
+      } else {
+        def += ` REFERENCES ${col.references}`;
+      }
       if (col.on_delete) def += ` ON DELETE ${col.on_delete}`;
     }
     return def;
