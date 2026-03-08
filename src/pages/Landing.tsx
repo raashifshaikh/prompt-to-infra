@@ -97,7 +97,7 @@ const Landing = () => {
               <div className="rounded-xl border border-border bg-card p-4 shadow-2xl shadow-primary/5">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="h-3 w-3 rounded-full bg-destructive/60" />
-                  <div className="h-3 w-3 rounded-full bg-yellow-500/60" />
+                  <div className="h-3 w-3 rounded-full bg-accent/60" />
                   <div className="h-3 w-3 rounded-full bg-primary/60" />
                   <span className="text-xs text-muted-foreground ml-2 font-mono">index.ts — Bytebase CLI</span>
                 </div>
