@@ -4,7 +4,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   Database, Server, Cloud, Zap, Code2, Rocket,
   Upload, Brain, Layers, ArrowRight, GraduationCap,
-  Sun, Moon, Instagram
+  Sun, Moon, Instagram, Mail
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useTheme } from '@/components/ThemeProvider';
