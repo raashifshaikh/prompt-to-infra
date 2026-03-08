@@ -315,10 +315,12 @@ const Landing = () => {
             <span className="font-semibold text-sm">Bytebase</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-muted-foreground">
+            <a href="mailto:raashifshaikh70@gmail.com" className="hover:text-primary transition-colors duration-200 flex items-center gap-1.5">
+              <Mail className="h-3.5 w-3.5" /> Contact
+            </a>
             <a href="https://www.instagram.com/_raashif?igsh=bm14Y2FpanVkbHdm" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors duration-200 flex items-center gap-1.5">
               <Instagram className="h-3.5 w-3.5" /> Raashif
             </a>
-            <a href="#" className="hover:text-foreground transition-colors duration-200">Twitter</a>
             <a href="#" className="hover:text-foreground transition-colors duration-200">GitHub</a>
             <a href="#" className="hover:text-foreground transition-colors duration-200">Privacy</a>
             <a href="#" className="hover:text-foreground transition-colors duration-200">Terms</a>

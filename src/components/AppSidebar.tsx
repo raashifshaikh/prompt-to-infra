@@ -1,7 +1,8 @@
-import { FolderOpen, PlusCircle, Settings, Home, BookOpen, MessageSquare, Database } from 'lucide-react';
+import { FolderOpen, PlusCircle, Settings, Home, BookOpen, MessageSquare, Database, LogOut } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { NavLink } from '@/components/NavLink';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '@/context/AuthContext';
 import {
   Sidebar,
   SidebarContent,
@@ -20,7 +21,6 @@ const items = [
   { title: 'AI Chat', url: '/chat', icon: MessageSquare },
   { title: 'Create New', url: '/create', icon: PlusCircle },
   { title: 'DB Manager', url: '/db-manager', icon: Database },
-  
   { title: 'Settings', url: '/settings', icon: Settings },
   { title: 'About', url: '/about', icon: BookOpen },
 ];
@@ -29,12 +29,19 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
   const location = useLocation();
+  const navigate = useNavigate();
+  const { user, signOut } = useAuth();
   const isActive = (path: string) => location.pathname === path;
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/');
+  };
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarContent>
-        <SidebarGroup>
+      <SidebarContent className="flex flex-col h-full">
+        <SidebarGroup className="flex-1">
           <SidebarGroupLabel>
             <img src={logo} alt="Bytebase" className="h-6 w-6" />
             {!collapsed && (
@@ -58,6 +65,22 @@ export function AppSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* User & Sign Out */}
+        {user && (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton onClick={handleSignOut} className="hover:bg-muted/50 text-muted-foreground hover:text-foreground">
+                    <LogOut className="mr-2 h-4 w-4" />
+                    {!collapsed && <span>Sign Out</span>}
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
     </Sidebar>
   );
