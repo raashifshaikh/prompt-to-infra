@@ -95,7 +95,7 @@ const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) =>
     setError('');
     try {
       const { data, error: err } = await supabase.functions.invoke('apply-supabase', {
-        body: { tables: result.tables, enums: result.enums, indexes: result.indexes, dbUrl },
+        body: { tables: result.tables, enums: result.enums, indexes: result.indexes, storageBuckets: result.storageBuckets, dbUrl },
       });
       if (err) throw err;
       setSql(data.sql || '');
