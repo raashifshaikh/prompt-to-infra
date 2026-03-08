@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useProjects } from '@/context/ProjectContext';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Database, Server, Cloud, HardDrive, Trash2 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { motion } from 'framer-motion';
+import { PlusCircle, Database, Server, Cloud, HardDrive, Trash2, Search, Sparkles } from 'lucide-react';
 
 const typeIcons: Record<string, React.ElementType> = {
   supabase: Database,
@@ -23,6 +26,12 @@ const statusColors: Record<string, string> = {
 const Dashboard = () => {
   const navigate = useNavigate();
   const { projects, deleteProject } = useProjects();
+  const [search, setSearch] = useState('');
+
+  const filtered = projects.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase()) ||
+    p.prompt.toLowerCase().includes(search.toLowerCase())
+  );
 
   return (
     <DashboardLayout>
@@ -38,57 +47,90 @@ const Dashboard = () => {
           </Button>
         </div>
 
+        {projects.length > 0 && (
+          <div className="relative mb-6">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search projects..."
+              className="pl-9 h-10 rounded-xl"
+            />
+          </div>
+        )}
+
         {projects.length === 0 ? (
           <Card className="border-dashed">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <Database className="h-12 w-12 text-muted-foreground/40 mb-4" />
-              <p className="text-muted-foreground mb-4">No projects yet. Create your first backend!</p>
-              <Button variant="outline" onClick={() => navigate('/create')}>
-                <PlusCircle className="h-4 w-4 mr-2" />
-                Create Backend
-              </Button>
+            <CardContent className="flex flex-col items-center justify-center py-20">
+              <div className="h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center mb-5">
+                <Sparkles className="h-7 w-7 text-primary" />
+              </div>
+              <h3 className="font-semibold text-lg mb-2">No projects yet</h3>
+              <p className="text-muted-foreground text-sm mb-6 text-center max-w-sm">
+                Create your first AI-generated backend in seconds. Describe your app and we'll handle the rest.
+              </p>
+              <div className="flex gap-3">
+                <Button onClick={() => navigate('/chat')}>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Start with AI Chat
+                </Button>
+                <Button variant="outline" onClick={() => navigate('/create')}>
+                  <PlusCircle className="h-4 w-4 mr-2" />
+                  Create Backend
+                </Button>
+              </div>
             </CardContent>
           </Card>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 text-muted-foreground text-sm">
+            No projects matching "{search}"
+          </div>
         ) : (
           <div className="grid gap-4">
-            {projects.map((project) => {
+            {filtered.map((project, i) => {
               const Icon = typeIcons[project.backendType] || Database;
               return (
-                <Card
+                <motion.div
                   key={project.id}
-                  className="cursor-pointer hover:border-primary/30 transition-colors group"
-                  onClick={() => navigate(`/project/${project.id}`)}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05, duration: 0.25 }}
                 >
-                  <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
-                    <div className="flex items-center gap-3">
-                      <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Icon className="h-4 w-4 text-primary" />
+                  <Card
+                    className="cursor-pointer hover:border-primary/30 hover:shadow-md hover:shadow-primary/[0.04] transition-all duration-200 group"
+                    onClick={() => navigate(`/project/${project.id}`)}
+                  >
+                    <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                          <Icon className="h-4 w-4 text-primary" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-base">{project.name}</CardTitle>
+                          <CardDescription className="text-xs mt-0.5">
+                            {new Date(project.createdAt).toLocaleDateString()} · {project.backendType}
+                          </CardDescription>
+                        </div>
                       </div>
-                      <div>
-                        <CardTitle className="text-base">{project.name}</CardTitle>
-                        <CardDescription className="text-xs mt-0.5">
-                          {new Date(project.createdAt).toLocaleDateString()} · {project.backendType}
-                        </CardDescription>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={statusColors[project.status]}>
+                          {project.status}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => { e.stopPropagation(); deleteProject(project.id); }}
+                        >
+                          <Trash2 className="h-4 w-4 text-muted-foreground" />
+                        </Button>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className={statusColors[project.status]}>
-                        {project.status}
-                      </Badge>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => { e.stopPropagation(); deleteProject(project.id); }}
-                      >
-                        <Trash2 className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground line-clamp-2">{project.prompt}</p>
-                  </CardContent>
-                </Card>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground line-clamp-2">{project.prompt}</p>
+                    </CardContent>
+                  </Card>
+                </motion.div>
               );
             })}
           </div>
