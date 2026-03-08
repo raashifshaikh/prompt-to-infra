@@ -48,10 +48,10 @@ const Landing = () => {
             </span>
           </div>
           <div className="hidden md:flex items-center gap-7 text-[13px] font-medium text-muted-foreground">
-            <button onClick={() => navigate('/about')} className="hover:text-foreground transition-colors duration-200">Features</button>
+            <a href="#workflow" className="hover:text-foreground transition-colors duration-200">Features</a>
             <button onClick={() => navigate('/about')} className="hover:text-foreground transition-colors duration-200">Docs</button>
-            <button onClick={() => navigate('/about')} className="hover:text-foreground transition-colors duration-200">Pricing</button>
-            <button onClick={() => navigate('/about')} className="hover:text-foreground transition-colors duration-200">Changelog</button>
+            <a href="#cta" className="hover:text-foreground transition-colors duration-200">Pricing</a>
+            <a href="#audience" className="hover:text-foreground transition-colors duration-200">Who It's For</a>
           </div>
           <div className="flex items-center gap-2">
             <button
