@@ -172,7 +172,7 @@ const AboutPage = () => {
         {/* Edge Functions Reference */}
         <section>
           <h2 className="text-2xl font-bold mb-2">Edge Functions Reference</h2>
-          <p className="text-muted-foreground mb-6">All 7 Supabase Edge Functions powering BackendForge.</p>
+          <p className="text-muted-foreground mb-6">All 7 Supabase Edge Functions <p className="text-muted-foreground mb-6">All 7 Supabase Edge Functions powering Bytebase.</p>.</p>
           <Card className="bg-card/50 border-border/50 overflow-hidden">
             <CardContent className="p-0">
               <table className="w-full text-sm">

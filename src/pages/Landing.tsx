@@ -25,8 +25,9 @@ const Landing = () => {
             <Zap className="h-3.5 w-3.5" />
             AI-Powered Backend Generation
           </div>
+          <img src={logo} alt="Bytebase logo" className="h-16 w-16 mx-auto mb-4" />
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-6">
-            Backend<span className="text-primary">Forge</span>
+            Byte<span className="text-primary">base</span>
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
             Describe your backend in plain English. Get database schemas, API routes, auth configs, and deployment scripts — generated in seconds.
