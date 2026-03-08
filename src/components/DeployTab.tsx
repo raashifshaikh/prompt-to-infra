@@ -89,7 +89,72 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
     }
   };
 
-  const handleApplyFirebase = async () => {
+  // One-click apply via Management API
+  const handleApplyViaApi = async () => {
+    if (!connectedProject) {
+      toast.error('No Supabase project connected');
+      return;
+    }
+    if (!result?.tables) {
+      toast.error('No tables to apply');
+      return;
+    }
+
+    const authData = localStorage.getItem('backendforge_supabase_oauth');
+    if (!authData) {
+      toast.error('Supabase OAuth session expired. Please reconnect.');
+      return;
+    }
+
+    const { accessToken } = JSON.parse(authData);
+    setApplyingViaApi(true);
+    setMigrationResults([]);
+    setMigrationError('');
+
+    try {
+      // Generate SQL from tables
+      const sqlStatements = result.tables.map((table) => {
+        const cols = table.columns.map((col) => {
+          let def = `"${col.name}" ${col.type}`;
+          if (col.primary_key) def += ' PRIMARY KEY';
+          if (!col.nullable && !col.primary_key) def += ' NOT NULL';
+          if (col.default) def += ` DEFAULT ${col.default}`;
+          return def;
+        }).join(',\n  ');
+        return `CREATE TABLE IF NOT EXISTS "${table.name}" (\n  ${cols}\n);`;
+      }).join('\n\n');
+
+      // Apply via Management API
+      const { data, error } = await supabase.functions.invoke('supabase-manage', {
+        body: {
+          action: 'run-sql',
+          accessToken,
+          projectRef: connectedProject.ref,
+          sql: sqlStatements,
+        },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setSupabaseSQL(sqlStatements);
+      onUpdateProject({
+        supabaseConfig: {
+          url: connectedProject.url,
+          anonKey: connectedProject.anonKey,
+          serviceRoleKey: '',
+          connected: true,
+        },
+      });
+      toast.success(`Schema applied to "${connectedProject.name}" via Management API!`);
+    } catch (err: any) {
+      setMigrationError(err.message || 'Failed to apply schema via API');
+      toast.error(err.message || 'Failed to apply schema');
+    } finally {
+      setApplyingViaApi(false);
+    }
+  };
+
     if (!fbProjectId) {
       toast.error('Please enter your Firebase Project ID');
       return;
