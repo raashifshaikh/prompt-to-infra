@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Database, Flame, Copy, Download, CheckCircle2, XCircle, AlertCircle, Server, Cloud, Terminal, FileDown } from 'lucide-react';
+import { Loader2, Database, Flame, Copy, Download, CheckCircle2, XCircle, AlertCircle, Server, Cloud, Terminal, FileDown, HelpCircle, Link } from 'lucide-react';
 import { Project, TutorialStep } from '@/types/project';
 
 interface DeployAndTutorialProps {
