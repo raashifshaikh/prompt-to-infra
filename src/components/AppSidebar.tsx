@@ -19,7 +19,7 @@ const items = [
   { title: 'Projects', url: '/dashboard', icon: FolderOpen },
   { title: 'AI Chat', url: '/chat', icon: MessageSquare },
   { title: 'Create New', url: '/create', icon: PlusCircle },
-  
+  { title: 'DB Manager', url: '/db-manager', icon: Database },
   
   { title: 'Settings', url: '/settings', icon: Settings },
   { title: 'About', url: '/about', icon: BookOpen },

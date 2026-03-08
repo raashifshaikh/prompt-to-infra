@@ -12,6 +12,7 @@ import ChatBackend from "./pages/ChatBackend";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 import AboutPage from "./pages/AboutPage";
+import DatabaseManager from "./pages/DatabaseManager";
 
 
 const queryClient = new QueryClient();
@@ -29,7 +30,7 @@ const App = () => (
             <Route path="/create" element={<CreateBackend />} />
             <Route path="/chat" element={<ChatBackend />} />
             <Route path="/project/:id" element={<ProjectView />} />
-            
+            <Route path="/db-manager" element={<DatabaseManager />} />
             
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/about" element={<AboutPage />} />
