@@ -11,9 +11,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useProjects } from '@/context/ProjectContext';
 import { supabase } from '@/integrations/supabase/client';
 import {
-  Send, Bot, User, Loader2, Sparkles, Database,
+  Send, Loader2, Sparkles, Database,
   CheckCircle2, ArrowRight, Image as ImageIcon,
-  Paperclip, Github, FileUp, X, FileText
+  Plus, Github, FileUp, X, FileText, ChevronDown
 } from 'lucide-react';
 
 type Message = { role: 'user' | 'assistant'; content: string };
