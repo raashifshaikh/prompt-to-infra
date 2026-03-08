@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.analyze-repo]
 verify_jwt = false
+
+[functions.github-oauth]
+verify_jwt = false

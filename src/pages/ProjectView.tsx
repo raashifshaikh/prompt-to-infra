@@ -174,7 +174,7 @@ const ProjectView = () => {
 
             <TabsContent value="tutorial">
               {result.integrationGuide && result.integrationGuide.length > 0 ? (
-                <IntegrationTutorial steps={result.integrationGuide} backendType={project.backendType} />
+                <IntegrationTutorial steps={result.integrationGuide} backendType={project.backendType} envTemplate={result.envTemplate} />
               ) : (
                 <Card>
                   <CardContent className="py-16 text-center">

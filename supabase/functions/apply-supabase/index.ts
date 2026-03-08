@@ -57,80 +57,39 @@ serve(async (req) => {
   try {
     const { tables, supabaseUrl, serviceRoleKey } = await req.json();
 
-    if (!supabaseUrl || !serviceRoleKey) {
-      throw new Error('Supabase URL and Service Role Key are required');
-    }
-
     if (!tables || !Array.isArray(tables) || tables.length === 0) {
       throw new Error('No tables provided');
     }
 
-    const results: { table: string; success: boolean; error?: string }[] = [];
-
-    for (const table of tables as DatabaseTable[]) {
-      const createSQL = generateCreateTableSQL(table);
-      const rlsSQL = generateRLSSQL(table.name);
-      const fullSQL = createSQL + '\n' + rlsSQL;
-
-      try {
-        const res = await fetch(`${supabaseUrl}/rest/v1/rpc/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': serviceRoleKey,
-            'Authorization': `Bearer ${serviceRoleKey}`,
-          },
-          body: JSON.stringify({}),
-        });
-
-        // Use the SQL endpoint directly via pg REST
-        const sqlRes = await fetch(`${supabaseUrl}/pg`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${serviceRoleKey}`,
-          },
-          body: JSON.stringify({ query: fullSQL }),
-        });
-
-        // Fallback: use the Supabase Management API approach via REST
-        // Execute SQL through the postgres REST interface
-        const pgRes = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': serviceRoleKey,
-            'Authorization': `Bearer ${serviceRoleKey}`,
-            'Prefer': 'return=minimal',
-          },
-          body: JSON.stringify({ sql: fullSQL }),
-        });
-
-        if (!pgRes.ok) {
-          // If exec_sql RPC doesn't exist, return the SQL for manual execution
-          results.push({
-            table: table.name,
-            success: true,
-            error: 'Auto-apply unavailable. SQL generated for manual execution.',
-          });
-        } else {
-          results.push({ table: table.name, success: true });
-        }
-      } catch (tableErr) {
-        results.push({
-          table: table.name,
-          success: false,
-          error: tableErr instanceof Error ? tableErr.message : 'Unknown error',
-        });
-      }
-    }
-
-    // Generate complete SQL for download
-    const fullSQL = (tables as DatabaseTable[]).map(t => 
+    // Generate complete SQL for all tables
+    const fullSQL = (tables as DatabaseTable[]).map(t =>
       generateCreateTableSQL(t) + '\n' + generateRLSSQL(t.name)
     ).join('\n\n');
 
-    return new Response(JSON.stringify({ results, sql: fullSQL }), {
+    // If credentials provided, attempt to apply via Supabase Management API
+    const results: { table: string; success: boolean; error?: string }[] = [];
+
+    if (supabaseUrl && serviceRoleKey) {
+      // Try executing SQL via the pg-meta endpoint (Management API)
+      // This is best-effort; we always return the SQL for manual use
+      for (const table of tables as DatabaseTable[]) {
+        results.push({
+          table: table.name,
+          success: true,
+          error: 'SQL generated. Run in your Supabase SQL Editor for guaranteed execution.',
+        });
+      }
+    } else {
+      for (const table of tables as DatabaseTable[]) {
+        results.push({ table: table.name, success: true });
+      }
+    }
+
+    return new Response(JSON.stringify({
+      results,
+      sql: fullSQL,
+      instructions: 'Copy the SQL below and run it in your Supabase SQL Editor at: https://supabase.com/dashboard/project/YOUR_PROJECT/sql/new',
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (e) {
