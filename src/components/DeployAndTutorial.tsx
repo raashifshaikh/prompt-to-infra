@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Database, Flame, Copy, Download, CheckCircle2, XCircle, AlertCircle, Server, Cloud, Terminal, FileDown } from 'lucide-react';
+import { Loader2, Database, Flame, Copy, Download, CheckCircle2, XCircle, AlertCircle, Server, Cloud, Terminal, FileDown, HelpCircle, Link } from 'lucide-react';
 import { Project, TutorialStep } from '@/types/project';
 
 interface DeployAndTutorialProps {
@@ -79,14 +79,48 @@ const TutorialSteps = ({ steps, title }: { steps: TutorialStep[]; title: string 
 // ─── Supabase Deploy ───
 const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) => {
   const result = project.result;
-  const [dbUrl, setDbUrl] = useState('');
+  const [connectionMode, setConnectionMode] = useState<'easy' | 'advanced'>('easy');
+  const [projectUrl, setProjectUrl] = useState('');
+  const [dbPassword, setDbPassword] = useState('');
+  const [rawDbUrl, setRawDbUrl] = useState('');
   const [applying, setApplying] = useState(false);
   const [sql, setSql] = useState('');
   const [results, setResults] = useState<MigrationResult[]>([]);
   const [error, setError] = useState('');
 
+  // Auto-construct the direct connection string from project URL + password
+  const constructedDbUrl = useMemo(() => {
+    if (connectionMode === 'advanced') return rawDbUrl;
+    if (!projectUrl || !dbPassword) return '';
+
+    // Extract project ref from various URL formats
+    let projectRef = '';
+    
+    // Format: https://abcdef.supabase.co or https://supabase.com/dashboard/project/abcdef
+    const dashboardMatch = projectUrl.match(/\/project\/([a-z]+)/);
+    const directMatch = projectUrl.match(/https?:\/\/([a-z]+)\.supabase\.co/);
+    const rawRef = projectUrl.match(/^([a-z]{20,})$/);
+
+    if (dashboardMatch) {
+      projectRef = dashboardMatch[1];
+    } else if (directMatch) {
+      projectRef = directMatch[1];
+    } else if (rawRef) {
+      projectRef = rawRef[1];
+    }
+
+    if (!projectRef) return '';
+    return `postgresql://postgres.${projectRef}:${encodeURIComponent(dbPassword)}@aws-0-us-east-1.pooler.supabase.com:5432/postgres`;
+  }, [connectionMode, projectUrl, dbPassword, rawDbUrl]);
+
   const handleApply = async () => {
-    if (!dbUrl) { toast.error('Please enter your database connection URL'); return; }
+    const dbUrl = constructedDbUrl;
+    if (!dbUrl) {
+      toast.error(connectionMode === 'easy'
+        ? 'Please enter your Supabase project URL and database password'
+        : 'Please enter your database connection URL');
+      return;
+    }
     if (!result?.tables) { toast.error('No tables to apply'); return; }
     if (dbUrl.includes(':6543')) { toast.error('Use port 5432 (direct connection) instead of 6543'); return; }
 
@@ -123,19 +157,84 @@ const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) =>
             <Database className="h-4 w-4" /> Apply Schema to Supabase
             {project.supabaseConfig?.connected && <Badge variant="default" className="text-xs">Connected</Badge>}
           </CardTitle>
+          <CardDescription className="text-xs">
+            Connect your Supabase project to automatically create all tables, enums, indexes, and storage buckets.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <Input
-            placeholder="postgresql://postgres:[PASSWORD]@db.[REF].supabase.co:5432/postgres"
-            value={dbUrl}
-            onChange={(e) => setDbUrl(e.target.value)}
-            type="password"
-            className="font-mono text-xs"
-          />
-          <p className="text-xs text-muted-foreground">
-            Use the <strong>direct connection string</strong> (port 5432) from Supabase → Settings → Database.
-          </p>
-          <Button onClick={handleApply} disabled={applying} size="sm">
+        <CardContent className="space-y-4">
+          {/* Mode toggle */}
+          <div className="flex gap-1 p-0.5 bg-muted rounded-lg w-fit">
+            <button
+              onClick={() => setConnectionMode('easy')}
+              className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
+                connectionMode === 'easy' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Easy Setup
+            </button>
+            <button
+              onClick={() => setConnectionMode('advanced')}
+              className={`text-xs px-3 py-1.5 rounded-md transition-colors ${
+                connectionMode === 'advanced' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Connection String
+            </button>
+          </div>
+
+          {connectionMode === 'easy' ? (
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">Project URL or Reference ID</label>
+                <Input
+                  placeholder="https://yourproject.supabase.co or abcdefghijklmnopqrst"
+                  value={projectUrl}
+                  onChange={(e) => setProjectUrl(e.target.value)}
+                  className="font-mono text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Find this in Supabase → Settings → General → Reference ID, or copy your project URL
+                </p>
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1.5 block">Database Password</label>
+                <Input
+                  placeholder="Your database password"
+                  value={dbPassword}
+                  onChange={(e) => setDbPassword(e.target.value)}
+                  type="password"
+                  className="font-mono text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  The password you set when creating your Supabase project. Reset it in Settings → Database if forgotten.
+                </p>
+              </div>
+              {constructedDbUrl && (
+                <div className="bg-muted/50 rounded-md p-2 flex items-center gap-2">
+                  <Link className="h-3 w-3 text-primary shrink-0" />
+                  <span className="text-[10px] font-mono text-muted-foreground truncate">
+                    postgresql://postgres.{projectUrl.match(/([a-z]{10,})/)?.[1] || '...'}:***@...supabase.com:5432/postgres
+                  </span>
+                  <Badge variant="outline" className="text-[10px] shrink-0">Auto-built</Badge>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <Input
+                placeholder="postgresql://postgres:[PASSWORD]@db.[REF].supabase.co:5432/postgres"
+                value={rawDbUrl}
+                onChange={(e) => setRawDbUrl(e.target.value)}
+                type="password"
+                className="font-mono text-xs"
+              />
+              <p className="text-xs text-muted-foreground mt-1.5">
+                Use the <strong>direct connection string</strong> (port 5432) from Supabase → Settings → Database.
+              </p>
+            </div>
+          )}
+
+          <Button onClick={handleApply} disabled={applying || !constructedDbUrl} size="sm">
             {applying ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Database className="h-3.5 w-3.5 mr-1.5" />}
             Apply Schema
           </Button>

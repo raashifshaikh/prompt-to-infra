@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjects } from '@/context/ProjectContext';
 import { DashboardLayout } from '@/components/DashboardLayout';
@@ -5,7 +6,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText } from 'lucide-react';
+import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import DeployAndTutorial from '@/components/DeployAndTutorial';
 
 const ProjectView = () => {
@@ -14,6 +17,8 @@ const ProjectView = () => {
   const [searchParams] = useSearchParams();
   const { getProject, updateProject } = useProjects();
   const project = getProject(id!);
+  const [generatedImages, setGeneratedImages] = useState<Record<string, string[]>>({});
+  const [generatingFor, setGeneratingFor] = useState<string | null>(null);
 
   const defaultTab = searchParams.get('tab') === 'deploy' ? 'deploy' : 'schema';
 
@@ -32,6 +37,50 @@ const ProjectView = () => {
 
   const handleUpdateProject = (updates: Partial<typeof project>) => {
     updateProject(project.id, updates);
+  };
+
+  // Check if a table likely contains visual entities (products, items, etc.)
+  const isImageTable = (tableName: string) => {
+    const imageTablePatterns = ['product', 'item', 'listing', 'property', 'course', 'post', 'article', 'menu', 'dish', 'vehicle', 'room', 'event'];
+    return imageTablePatterns.some(p => tableName.toLowerCase().includes(p));
+  };
+
+  const handleGenerateImage = async (tableName: string) => {
+    setGeneratingFor(tableName);
+    try {
+      const prompt = `Professional, high-quality product photography of a ${tableName.replace(/_/g, ' ').replace(/s$/, '')}. Clean white background, studio lighting, modern aesthetic. Photorealistic.`;
+      
+      const { data, error } = await supabase.functions.invoke('generate-image', {
+        body: { prompt },
+      });
+      
+      if (error) throw error;
+      if (!data.imageUrl) throw new Error('No image generated');
+      
+      setGeneratedImages(prev => ({
+        ...prev,
+        [tableName]: [...(prev[tableName] || []), data.imageUrl],
+      }));
+      toast.success(`Image generated for ${tableName}`);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to generate image');
+    } finally {
+      setGeneratingFor(null);
+    }
+  };
+
+  const handleDownloadImage = (dataUrl: string, name: string) => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `${name}.png`;
+    a.click();
+  };
+
+  const removeImage = (tableName: string, index: number) => {
+    setGeneratedImages(prev => ({
+      ...prev,
+      [tableName]: (prev[tableName] || []).filter((_, i) => i !== index),
+    }));
   };
 
   return (
@@ -212,6 +261,68 @@ const ProjectView = () => {
                   </div>
                 )}
 
+                {/* AI Image Generation */}
+                {result.tables.some(t => isImageTable(t.name)) && (
+                  <div>
+                    <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-primary" /> AI Image Generation
+                    </h3>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Generate sample images for your product/entity tables using AI.
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {result.tables.filter(t => isImageTable(t.name)).map(table => (
+                        <Card key={table.name}>
+                          <CardContent className="p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm font-mono font-medium">{table.name}</span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                onClick={() => handleGenerateImage(table.name)}
+                                disabled={generatingFor === table.name}
+                              >
+                                {generatingFor === table.name ? (
+                                  <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Generating...</>
+                                ) : (
+                                  <><Sparkles className="h-3 w-3 mr-1" /> Generate</>
+                                )}
+                              </Button>
+                            </div>
+                            {generatedImages[table.name]?.length > 0 && (
+                              <div className="flex gap-2 flex-wrap mt-2">
+                                {generatedImages[table.name].map((img, idx) => (
+                                  <div key={idx} className="relative group">
+                                    <img
+                                      src={img}
+                                      alt={`Generated ${table.name}`}
+                                      className="h-20 w-20 object-cover rounded-md border border-border"
+                                    />
+                                    <div className="absolute inset-0 bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity rounded-md flex items-center justify-center gap-1">
+                                      <button
+                                        onClick={() => handleDownloadImage(img, `${table.name}-${idx}`)}
+                                        className="h-6 w-6 rounded bg-primary/10 flex items-center justify-center hover:bg-primary/20"
+                                      >
+                                        <Download className="h-3 w-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => removeImage(table.name, idx)}
+                                        className="h-6 w-6 rounded bg-destructive/10 flex items-center justify-center hover:bg-destructive/20"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 <div>
                   <h3 className="text-sm font-medium mb-3">API Routes</h3>
