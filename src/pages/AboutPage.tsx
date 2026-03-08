@@ -1,5 +1,6 @@
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card, CardContent } from '@/components/ui/card';
+import logo from '@/assets/logo.png';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
@@ -79,6 +80,7 @@ const AboutPage = () => {
             <Zap className="h-3.5 w-3.5" />
             Prompt-to-Infrastructure Platform
           </div>
+          <img src={logo} alt="Bytebase logo" className="h-14 w-14 mx-auto mb-3" />
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-4">
             Byte<span className="text-primary">base</span>
           </h1>
