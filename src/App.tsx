@@ -12,7 +12,7 @@ import ImportProject from "./pages/ImportProject";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 import AboutPage from "./pages/AboutPage";
-import ConnectSupabase from "./pages/ConnectSupabase";
+
 
 const queryClient = new QueryClient();
 
