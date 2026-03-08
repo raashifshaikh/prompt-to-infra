@@ -16,6 +16,7 @@ import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 import AboutPage from "./pages/AboutPage";
 import DatabaseManager from "./pages/DatabaseManager";
+import ProfilePage from "./pages/ProfilePage";
 import AuthPage from "./pages/AuthPage";
 import ResetPassword from "./pages/ResetPassword";
 
