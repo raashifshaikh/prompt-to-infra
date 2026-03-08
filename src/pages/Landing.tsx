@@ -30,13 +30,23 @@ const Landing = () => {
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10 leading-relaxed">
             Describe your backend in plain English. Get database schemas, API routes, auth configs, and deployment scripts — generated in seconds.
           </p>
-          <Button
-            size="lg"
-            className="h-12 px-8 text-base font-semibold"
-            onClick={() => navigate('/dashboard')}
-          >
-            Start Building
-          </Button>
+          <div className="flex items-center justify-center gap-3">
+            <Button
+              size="lg"
+              className="h-12 px-8 text-base font-semibold"
+              onClick={() => navigate('/dashboard')}
+            >
+              Start Building
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="h-12 px-8 text-base"
+              onClick={() => navigate('/about')}
+            >
+              Documentation
+            </Button>
+          </div>
         </div>
       </div>
 
