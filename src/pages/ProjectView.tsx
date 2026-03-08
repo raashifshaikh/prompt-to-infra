@@ -39,6 +39,50 @@ const ProjectView = () => {
     updateProject(project.id, updates);
   };
 
+  // Check if a table likely contains visual entities (products, items, etc.)
+  const isImageTable = (tableName: string) => {
+    const imageTablePatterns = ['product', 'item', 'listing', 'property', 'course', 'post', 'article', 'menu', 'dish', 'vehicle', 'room', 'event'];
+    return imageTablePatterns.some(p => tableName.toLowerCase().includes(p));
+  };
+
+  const handleGenerateImage = async (tableName: string) => {
+    setGeneratingFor(tableName);
+    try {
+      const prompt = `Professional, high-quality product photography of a ${tableName.replace(/_/g, ' ').replace(/s$/, '')}. Clean white background, studio lighting, modern aesthetic. Photorealistic.`;
+      
+      const { data, error } = await supabase.functions.invoke('generate-image', {
+        body: { prompt },
+      });
+      
+      if (error) throw error;
+      if (!data.imageUrl) throw new Error('No image generated');
+      
+      setGeneratedImages(prev => ({
+        ...prev,
+        [tableName]: [...(prev[tableName] || []), data.imageUrl],
+      }));
+      toast.success(`Image generated for ${tableName}`);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to generate image');
+    } finally {
+      setGeneratingFor(null);
+    }
+  };
+
+  const handleDownloadImage = (dataUrl: string, name: string) => {
+    const a = document.createElement('a');
+    a.href = dataUrl;
+    a.download = `${name}.png`;
+    a.click();
+  };
+
+  const removeImage = (tableName: string, index: number) => {
+    setGeneratedImages(prev => ({
+      ...prev,
+      [tableName]: (prev[tableName] || []).filter((_, i) => i !== index),
+    }));
+  };
+
   return (
     <DashboardLayout>
       <div className="max-w-4xl mx-auto">
