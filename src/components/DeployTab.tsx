@@ -23,10 +23,13 @@ interface MigrationResult {
 
 const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
   const result = project.result;
+  const navigate = useNavigate();
+  const connectedProject = getSelectedSupabaseProject();
 
   // Supabase connection
   const [dbUrl, setDbUrl] = useState('');
   const [applyingSupabase, setApplyingSupabase] = useState(false);
+  const [applyingViaApi, setApplyingViaApi] = useState(false);
   const [supabaseSQL, setSupabaseSQL] = useState('');
   const [migrationResults, setMigrationResults] = useState<MigrationResult[]>([]);
   const [migrationError, setMigrationError] = useState('');
