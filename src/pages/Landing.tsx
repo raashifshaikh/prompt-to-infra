@@ -151,7 +151,7 @@ const Landing = () => {
       </section>
 
       {/* Workflow Section */}
-      <section className="border-t border-border/30">
+      <section id="workflow" className="border-t border-border/30 scroll-mt-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-24 sm:py-32">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }}
