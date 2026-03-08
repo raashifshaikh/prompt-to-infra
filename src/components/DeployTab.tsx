@@ -3,10 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Check, Database, Flame, Copy, Download } from 'lucide-react';
+import { Loader2, Check, Database, Flame, Copy, Download, ExternalLink, X, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import { DatabaseTable, Project } from '@/types/project';
 
 interface DeployTabProps {
@@ -14,14 +13,21 @@ interface DeployTabProps {
   onUpdateProject: (updates: Partial<Project>) => void;
 }
 
+interface MigrationResult {
+  label: string;
+  success: boolean;
+  error?: string;
+}
+
 const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
   const result = project.result;
 
   // Supabase connection
-  const [sbUrl, setSbUrl] = useState(project.supabaseConfig?.url || '');
-  const [sbServiceKey, setSbServiceKey] = useState(project.supabaseConfig?.serviceRoleKey || '');
+  const [dbUrl, setDbUrl] = useState('');
   const [applyingSupabase, setApplyingSupabase] = useState(false);
   const [supabaseSQL, setSupabaseSQL] = useState('');
+  const [migrationResults, setMigrationResults] = useState<MigrationResult[]>([]);
+  const [migrationError, setMigrationError] = useState('');
 
   // Firebase connection
   const [fbProjectId, setFbProjectId] = useState(project.firebaseConfig?.projectId || '');
@@ -32,8 +38,8 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
   const [deployingFly, setDeployingFly] = useState(false);
 
   const handleApplySupabase = async () => {
-    if (!sbUrl || !sbServiceKey) {
-      toast.error('Please enter your Supabase URL and Service Role Key');
+    if (!dbUrl) {
+      toast.error('Please enter your database connection URL');
       return;
     }
     if (!result?.tables) {
@@ -41,20 +47,37 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
       return;
     }
 
+    // Validate port guidance
+    if (dbUrl.includes(':6543')) {
+      toast.error('Use port 5432 (direct connection) instead of 6543 (pooler) for schema migrations');
+      return;
+    }
+
     setApplyingSupabase(true);
+    setMigrationResults([]);
+    setMigrationError('');
+
     try {
       const { data, error } = await supabase.functions.invoke('apply-supabase', {
-        body: { tables: result.tables, supabaseUrl: sbUrl, serviceRoleKey: sbServiceKey },
+        body: { tables: result.tables, dbUrl },
       });
 
       if (error) throw error;
 
       setSupabaseSQL(data.sql || '');
-      onUpdateProject({
-        supabaseConfig: { url: sbUrl, anonKey: '', serviceRoleKey: sbServiceKey, connected: true },
-      });
-      toast.success('Schema applied! Check the SQL tab for the migration script.');
+      setMigrationResults(data.results || []);
+
+      if (data.success) {
+        onUpdateProject({
+          supabaseConfig: { url: '', anonKey: '', serviceRoleKey: '', connected: true },
+        });
+        toast.success(data.message || 'Schema applied successfully!');
+      } else {
+        setMigrationError(data.error || 'Migration failed');
+        toast.error('Migration failed — check results below');
+      }
     } catch (err: any) {
+      setMigrationError(err.message || 'Failed to apply schema');
       toast.error(err.message || 'Failed to apply schema');
     } finally {
       setApplyingSupabase(false);
@@ -97,7 +120,6 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
   const handleDeployFlyio = async () => {
     setDeployingFly(true);
     try {
-      // Step 1: Create app
       const { data: createData, error: createErr } = await supabase.functions.invoke('deploy-flyio', {
         body: { action: 'create-app', projectName: project.name },
       });
@@ -107,10 +129,8 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
       onUpdateProject({
         flyDeployment: { appName, url: createData.url, status: 'creating' },
       });
-
       toast.success(`App "${appName}" created on Fly.io!`);
 
-      // Step 2: Deploy
       const { data: deployData, error: deployErr } = await supabase.functions.invoke('deploy-flyio', {
         body: { action: 'deploy', appName },
       });
@@ -120,7 +140,6 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
         flyDeployment: { appName, url: deployData.url, status: 'running' },
         status: 'deployed',
       });
-
       toast.success(`Deployed to ${deployData.url}`);
     } catch (err: any) {
       toast.error(err.message || 'Fly.io deployment failed');
@@ -154,36 +173,78 @@ const DeployTab = ({ project, onUpdateProject }: DeployTabProps) => {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Database className="h-4 w-4" /> Connect to Supabase
+              <Database className="h-4 w-4" /> Apply Schema to Supabase
               {project.supabaseConfig?.connected && <Badge variant="default" className="text-xs">Connected</Badge>}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <Input
-              placeholder="https://your-project.supabase.co"
-              value={sbUrl}
-              onChange={(e) => setSbUrl(e.target.value)}
-              className="font-mono text-xs"
-            />
-            <Input
-              placeholder="Your service role key (kept in memory only)"
-              value={sbServiceKey}
-              onChange={(e) => setSbServiceKey(e.target.value)}
+              placeholder="postgresql://postgres:[YOUR-PASSWORD]@db.[PROJECT-REF].supabase.co:5432/postgres"
+              value={dbUrl}
+              onChange={(e) => setDbUrl(e.target.value)}
               type="password"
               className="font-mono text-xs"
             />
             <p className="text-xs text-muted-foreground">
-              Your service role key is used once to apply the schema and is never stored server-side.
+              Use the <strong>direct connection string</strong> (port 5432) from your Supabase project → Settings → Database.
+              Do not use the pooler connection (port 6543) for migrations.
             </p>
-            <Button onClick={handleApplySupabase} disabled={applyingSupabase} size="sm">
-              {applyingSupabase ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Database className="h-3.5 w-3.5 mr-1.5" />}
-              Apply Schema to Supabase
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleApplySupabase} disabled={applyingSupabase} size="sm">
+                {applyingSupabase ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Database className="h-3.5 w-3.5 mr-1.5" />}
+                Apply Schema
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                asChild
+              >
+                <a
+                  href="https://supabase.com/dashboard/project/ppijamljbuqczriukhlh/sql/new"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <ExternalLink className="h-3.5 w-3.5 mr-1.5" />
+                  Open SQL Editor
+                </a>
+              </Button>
+            </div>
 
+            {/* Migration Progress */}
+            {migrationResults.length > 0 && (
+              <div className="mt-4 space-y-1.5">
+                <h4 className="text-xs font-medium mb-2">Migration Results</h4>
+                {migrationResults.map((r, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs">
+                    {r.success ? (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+                    ) : (
+                      <XCircle className="h-3.5 w-3.5 text-destructive shrink-0" />
+                    )}
+                    <span className={r.success ? 'text-foreground' : 'text-destructive'}>
+                      {r.label}
+                    </span>
+                    {r.error && (
+                      <span className="text-muted-foreground truncate ml-1">— {r.error}</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Migration Error */}
+            {migrationError && !migrationResults.length && (
+              <div className="mt-3 flex items-start gap-2 bg-destructive/10 text-destructive rounded-md p-3 text-xs">
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                <span>{migrationError}</span>
+              </div>
+            )}
+
+            {/* Generated SQL */}
             {supabaseSQL && (
               <div className="mt-4">
                 <div className="flex items-center justify-between mb-2">
-                  <h4 className="text-xs font-medium">Generated SQL Migration</h4>
+                  <h4 className="text-xs font-medium">Generated SQL (manual fallback)</h4>
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleCopy(supabaseSQL)}>
                       <Copy className="h-3.5 w-3.5" />

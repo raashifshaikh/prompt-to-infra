@@ -35,26 +35,32 @@ You MUST respond with ONLY valid JSON matching this schema:
 
 Analyze package.json for dependencies, look at component names and file structure to infer data models, and suggest appropriate tables, routes, and features.`;
 
-async function fetchGitHubRepo(repoUrl: string): Promise<{ structure: string; files: Record<string, string> }> {
-  // Parse GitHub URL
+function githubHeaders(token?: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    'Accept': 'application/vnd.github.v3+json',
+    'User-Agent': 'BackendForge',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+async function fetchGitHubRepo(repoUrl: string, token?: string): Promise<{ structure: string; files: Record<string, string> }> {
   const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
   if (!match) throw new Error('Invalid GitHub URL');
   
   const [, owner, repo] = match;
   const cleanRepo = repo.replace(/\.git$/, '');
+  const headers = githubHeaders(token);
 
   // Fetch repo tree
-  const treeRes = await fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/git/trees/main?recursive=1`, {
-    headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'BackendForge' },
-  });
-
   let treeData;
+  const treeRes = await fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/git/trees/main?recursive=1`, { headers });
+
   if (!treeRes.ok) {
-    // Try master branch
-    const masterRes = await fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/git/trees/master?recursive=1`, {
-      headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'BackendForge' },
-    });
-    if (!masterRes.ok) throw new Error(`Failed to fetch repo: ${masterRes.status}`);
+    const masterRes = await fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/git/trees/master?recursive=1`, { headers });
+    if (!masterRes.ok) throw new Error(`Failed to fetch repo: ${masterRes.status}. ${token ? '' : 'If this is a private repo, connect your GitHub account first.'}`);
     treeData = await masterRes.json();
   } else {
     treeData = await treeRes.json();
@@ -71,9 +77,7 @@ async function fetchGitHubRepo(repoUrl: string): Promise<{ structure: string; fi
 
   for (const filePath of keyFiles) {
     try {
-      const fileRes = await fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/contents/${filePath}`, {
-        headers: { 'Accept': 'application/vnd.github.v3+json', 'User-Agent': 'BackendForge' },
-      });
+      const fileRes = await fetch(`https://api.github.com/repos/${owner}/${cleanRepo}/contents/${filePath}`, { headers });
       if (fileRes.ok) {
         const fileData = await fileRes.json();
         if (fileData.content) {
@@ -83,7 +87,7 @@ async function fetchGitHubRepo(repoUrl: string): Promise<{ structure: string; fi
     } catch { /* skip */ }
   }
 
-  // Also fetch component file names from src/
+  // Component file names
   const componentFiles = treeData.tree
     .filter((f: any) => f.type === 'blob' && f.path.startsWith('src/') && (f.path.endsWith('.tsx') || f.path.endsWith('.jsx')))
     .map((f: any) => f.path)
@@ -100,7 +104,7 @@ serve(async (req) => {
   }
 
   try {
-    const { githubUrl, uploadedFiles } = await req.json();
+    const { githubUrl, uploadedFiles, githubToken } = await req.json();
     const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY');
 
     if (!GROQ_API_KEY) {
@@ -110,7 +114,7 @@ serve(async (req) => {
     let projectInfo = '';
 
     if (githubUrl) {
-      const { structure, files } = await fetchGitHubRepo(githubUrl);
+      const { structure, files } = await fetchGitHubRepo(githubUrl, githubToken);
       projectInfo = `## File Structure:\n${structure}\n\n`;
       for (const [path, content] of Object.entries(files)) {
         projectInfo += `## ${path}:\n\`\`\`\n${content.slice(0, 3000)}\n\`\`\`\n\n`;
