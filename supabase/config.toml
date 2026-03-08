@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.generate-image]
 verify_jwt = false
+
+[functions.generate-avatar]
+verify_jwt = false

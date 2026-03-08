@@ -1,4 +1,4 @@
-import { FolderOpen, PlusCircle, Settings, Home, BookOpen, MessageSquare, Database, LogOut } from 'lucide-react';
+import { FolderOpen, PlusCircle, Settings, Home, BookOpen, MessageSquare, Database, LogOut, UserCircle } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -21,6 +21,7 @@ const items = [
   { title: 'AI Chat', url: '/chat', icon: MessageSquare },
   { title: 'Create New', url: '/create', icon: PlusCircle },
   { title: 'DB Manager', url: '/db-manager', icon: Database },
+  { title: 'Profile', url: '/profile', icon: UserCircle },
   { title: 'Settings', url: '/settings', icon: Settings },
   { title: 'About', url: '/about', icon: BookOpen },
 ];
