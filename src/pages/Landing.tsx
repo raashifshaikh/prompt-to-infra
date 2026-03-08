@@ -288,8 +288,12 @@ const Landing = () => {
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-[-0.03em] mb-5">
               Ready to build your next big thing?
             </h2>
-            <p className="text-muted-foreground max-w-lg mx-auto mb-9 text-[15px]">
+            <p className="text-muted-foreground max-w-lg mx-auto mb-4 text-[15px]">
               Join 2,000+ developers turning ideas into production-ready full-stack applications in minutes.
+            </p>
+            <p className="text-sm text-muted-foreground mb-9">
+              Questions? Reach out at{' '}
+              <a href="mailto:raashifshaikh70@gmail.com" className="text-primary hover:underline">raashifshaikh70@gmail.com</a>
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Button size="lg" className="h-12 px-8 text-[15px] font-semibold rounded-full shadow-lg shadow-primary/20" onClick={() => navigate('/chat')}>
