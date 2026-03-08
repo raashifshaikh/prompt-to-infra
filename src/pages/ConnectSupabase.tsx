@@ -73,7 +73,7 @@ const ConnectSupabase = () => {
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [selectingRef, setSelectingRef] = useState<string | null>(null);
 
-  const redirectUri = `${window.location.origin}/connect-supabase`;
+  const redirectUri = 'https://prompt-to-infra.lovable.app/connect-supabase';
 
   // Handle OAuth callback
   useEffect(() => {
