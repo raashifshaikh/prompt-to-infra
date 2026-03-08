@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,11 +8,14 @@ import { Badge } from '@/components/ui/badge';
 import { supabase } from '@/integrations/supabase/client';
 import { useProjects } from '@/context/ProjectContext';
 import { toast } from 'sonner';
-import { Loader2, Github, Upload, ArrowRight, FolderTree, Database, Globe } from 'lucide-react';
+import { Loader2, Github, Upload, ArrowRight, FolderTree, Database, Globe, CheckCircle2, LogOut } from 'lucide-react';
 import { Project } from '@/types/project';
+
+const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID || '';
 
 const ImportProject = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { addProject, updateProject } = useProjects();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -20,6 +23,66 @@ const ImportProject = () => {
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, string>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
+
+  // GitHub OAuth state
+  const [githubToken, setGithubToken] = useState<string | null>(localStorage.getItem('github_token'));
+  const [githubUser, setGithubUser] = useState<{ login: string; avatar_url: string; name?: string } | null>(null);
+  const [exchangingToken, setExchangingToken] = useState(false);
+
+  // Load GitHub user info from localStorage
+  useEffect(() => {
+    const storedUser = localStorage.getItem('github_user');
+    if (storedUser && githubToken) {
+      try {
+        setGithubUser(JSON.parse(storedUser));
+      } catch { /* ignore */ }
+    }
+  }, [githubToken]);
+
+  // Handle OAuth callback
+  useEffect(() => {
+    const code = searchParams.get('code');
+    if (code && !githubToken && !exchangingToken) {
+      setExchangingToken(true);
+      (async () => {
+        try {
+          const { data, error } = await supabase.functions.invoke('github-auth', {
+            body: { code },
+          });
+          if (error) throw error;
+          if (data.access_token) {
+            localStorage.setItem('github_token', data.access_token);
+            setGithubToken(data.access_token);
+            if (data.user) {
+              localStorage.setItem('github_user', JSON.stringify(data.user));
+              setGithubUser(data.user);
+            }
+            toast.success(`Connected as ${data.user?.login || 'GitHub user'}`);
+            // Clean up URL
+            window.history.replaceState({}, '', '/import');
+          }
+        } catch (err: any) {
+          toast.error(err.message || 'Failed to connect GitHub');
+        } finally {
+          setExchangingToken(false);
+        }
+      })();
+    }
+  }, [searchParams, githubToken, exchangingToken]);
+
+  const handleConnectGitHub = () => {
+    const redirectUri = `${window.location.origin}/import`;
+    const url = `https://github.com/login/oauth/authorize?client_id=${GITHUB_CLIENT_ID}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=repo`;
+    window.location.href = url;
+  };
+
+  const handleDisconnectGitHub = () => {
+    localStorage.removeItem('github_token');
+    localStorage.removeItem('github_user');
+    setGithubToken(null);
+    setGithubUser(null);
+    toast.success('GitHub disconnected');
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -56,6 +119,7 @@ const ImportProject = () => {
         body: {
           githubUrl: githubUrl || undefined,
           uploadedFiles: Object.keys(uploadedFiles).length > 0 ? uploadedFiles : undefined,
+          githubToken: githubToken || undefined,
         },
       });
 
@@ -121,6 +185,55 @@ const ImportProject = () => {
         </p>
 
         <div className="space-y-6">
+          {/* GitHub Connection Status */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Github className="h-4 w-4" /> GitHub Connection
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {githubToken && githubUser ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <img src={githubUser.avatar_url} alt="" className="h-8 w-8 rounded-full" />
+                    <div>
+                      <p className="text-sm font-medium flex items-center gap-1.5">
+                        {githubUser.login}
+                        <CheckCircle2 className="h-3.5 w-3.5 text-green-500" />
+                      </p>
+                      <p className="text-xs text-muted-foreground">Private repo access enabled</p>
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={handleDisconnectGitHub}>
+                    <LogOut className="h-3.5 w-3.5 mr-1.5" /> Disconnect
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    Connect GitHub to analyze private repositories. Public repos work without connection.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleConnectGitHub}
+                    disabled={exchangingToken || !GITHUB_CLIENT_ID}
+                  >
+                    {exchangingToken ? (
+                      <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Connecting...</>
+                    ) : (
+                      <><Github className="h-3.5 w-3.5 mr-1.5" /> Connect GitHub</>
+                    )}
+                  </Button>
+                  {!GITHUB_CLIENT_ID && (
+                    <p className="text-xs text-muted-foreground">GitHub Client ID not configured.</p>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
           {/* GitHub URL */}
           <Card>
             <CardHeader className="pb-3">
@@ -137,7 +250,9 @@ const ImportProject = () => {
                   className="font-mono text-sm"
                 />
               </div>
-              <p className="text-xs text-muted-foreground mt-2">Public repositories only. We'll analyze the structure and key files.</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                {githubToken ? 'Public and private repositories supported.' : 'Public repositories only. Connect GitHub for private repos.'}
+              </p>
             </CardContent>
           </Card>
 
@@ -201,7 +316,6 @@ const ImportProject = () => {
                 <CardTitle className="text-base">Analysis Results</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* Detected Stack */}
                 {analysis.detectedStack && (
                   <div>
                     <h3 className="text-sm font-medium mb-2">Detected Tech Stack</h3>
@@ -215,7 +329,6 @@ const ImportProject = () => {
                   </div>
                 )}
 
-                {/* Suggested Tables */}
                 {analysis.tables && analysis.tables.length > 0 && (
                   <div>
                     <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
@@ -231,7 +344,6 @@ const ImportProject = () => {
                   </div>
                 )}
 
-                {/* Suggested Routes */}
                 {analysis.routes && analysis.routes.length > 0 && (
                   <div>
                     <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
@@ -248,7 +360,6 @@ const ImportProject = () => {
                   </div>
                 )}
 
-                {/* Features */}
                 {analysis.features && (
                   <div>
                     <h3 className="text-sm font-medium mb-2">Detected Features</h3>
@@ -260,14 +371,12 @@ const ImportProject = () => {
                   </div>
                 )}
 
-                {/* Reasoning */}
                 {analysis.reasoning && (
                   <div className="bg-muted/50 rounded-md p-3">
                     <p className="text-xs text-muted-foreground">{analysis.reasoning}</p>
                   </div>
                 )}
 
-                {/* Generate Button */}
                 <Button className="w-full" onClick={handleGenerateFromAnalysis}>
                   <ArrowRight className="h-4 w-4 mr-2" />
                   Generate Backend ({analysis.suggestedBackendType || 'supabase'})
