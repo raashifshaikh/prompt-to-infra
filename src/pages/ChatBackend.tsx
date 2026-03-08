@@ -13,7 +13,8 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   Send, Loader2, Sparkles, Database,
   CheckCircle2, ArrowRight, Image as ImageIcon,
-  Plus, Github, FileUp, X, FileText, ChevronDown
+  Plus, Github, FileUp, X, FileText, ChevronDown,
+  MessageSquarePlus, ArrowDown
 } from 'lucide-react';
 
 type Message = { role: 'user' | 'assistant'; content: string };
@@ -37,9 +38,29 @@ type Attachment = {
   url?: string;
 };
 
+type ChatSession = {
+  id: string;
+  title: string;
+  messages: Message[];
+  createdAt: string;
+};
+
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-backend`;
+const CHAT_HISTORY_KEY = 'bytebase-chat-history';
+
+const loadChatHistory = (): ChatSession[] => {
+  try {
+    return JSON.parse(localStorage.getItem(CHAT_HISTORY_KEY) || '[]');
+  } catch { return []; }
+};
+
+const saveChatHistory = (sessions: ChatSession[]) => {
+  localStorage.setItem(CHAT_HISTORY_KEY, JSON.stringify(sessions.slice(0, 20)));
+};
 
 const ChatBackend = () => {
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>(loadChatHistory);
+  const [currentSessionId, setCurrentSessionId] = useState<string>(() => crypto.randomUUID());
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -49,7 +70,9 @@ const ChatBackend = () => {
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [githubUrl, setGithubUrl] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -61,6 +84,50 @@ const ChatBackend = () => {
   };
 
   useEffect(scrollToBottom, [messages]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      inputRef.current.style.height = Math.min(inputRef.current.scrollHeight, 120) + 'px';
+    }
+  }, [input]);
+
+  // Scroll detection for scroll-to-bottom button
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const fromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+      setShowScrollBtn(fromBottom > 100);
+    };
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Save messages to chat history
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const title = messages[0]?.content.slice(0, 50) || 'New Chat';
+    setChatSessions(prev => {
+      const existing = prev.findIndex(s => s.id === currentSessionId);
+      const session: ChatSession = { id: currentSessionId, title, messages, createdAt: new Date().toISOString() };
+      const updated = existing >= 0
+        ? prev.map((s, i) => i === existing ? session : s)
+        : [session, ...prev];
+      saveChatHistory(updated);
+      return updated;
+    });
+  }, [messages, currentSessionId]);
+
+  const handleNewChat = () => {
+    setMessages([]);
+    setPlan(null);
+    setAttachments([]);
+    setInput('');
+    setCurrentSessionId(crypto.randomUUID());
+    inputRef.current?.focus();
+  };
 
   const extractPlan = (text: string): PlanSummary | null => {
     const jsonMatch = text.match(/```json\s*([\s\S]*?)```/);
@@ -360,16 +427,22 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
 
   return (
     <DashboardLayout>
-      <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-4rem)]">
+      <div className="max-w-3xl mx-auto flex flex-col h-[calc(100vh-4rem)] sm:h-[calc(100vh-4rem)]">
         {/* Minimal Header */}
-        <div className="flex items-center gap-2 py-4 px-1">
+        <div className="flex items-center gap-2 py-3 sm:py-4 px-1">
           <h1 className="text-base font-semibold tracking-tight text-foreground">AI Architect</h1>
           <span className="text-xs text-muted-foreground">·</span>
-          <span className="text-xs text-muted-foreground">Design your backend</span>
+          <span className="text-xs text-muted-foreground hidden sm:inline">Design your backend</span>
+          <div className="ml-auto">
+            <Button variant="ghost" size="sm" onClick={handleNewChat} className="h-8 gap-1.5 text-xs text-muted-foreground hover:text-foreground">
+              <MessageSquarePlus className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">New Chat</span>
+            </Button>
+          </div>
         </div>
 
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto py-4 space-y-4 scroll-smooth">
+        <div ref={messagesContainerRef} className="flex-1 overflow-y-auto py-4 space-y-4 scroll-smooth relative px-1 sm:px-0">
           <AnimatePresence>
             {messages.length === 0 && (
               <motion.div
@@ -412,10 +485,10 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
               animate="visible"
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm ${
+              <div className={`max-w-[90%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm ${
                 msg.role === 'user'
-                  ? 'bg-[hsl(30,25%,93%)] dark:bg-[hsl(30,10%,20%)] text-foreground rounded-br-sm'
-                  : 'bg-card border border-border rounded-bl-sm'
+                  ? 'bg-[hsl(30,25%,93%)] dark:bg-[hsl(30,15%,22%)] text-foreground rounded-br-sm'
+                  : 'bg-card border border-border dark:border-border/60 rounded-bl-sm'
               }`}>
                 {msg.role === 'assistant' ? renderMessageContent(msg.content) : (
                   <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -515,6 +588,21 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
           </AnimatePresence>
 
           <div ref={messagesEndRef} />
+
+          {/* Scroll to bottom button */}
+          <AnimatePresence>
+            {showScrollBtn && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                onClick={scrollToBottom}
+                className="sticky bottom-2 left-1/2 -translate-x-1/2 h-8 w-8 rounded-full bg-card border border-border shadow-md flex items-center justify-center text-muted-foreground hover:text-foreground transition-colors z-10"
+              >
+                <ArrowDown className="h-4 w-4" />
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* Attachment Panel */}
@@ -607,7 +695,7 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
         />
 
         {/* Input Area — Lovable-style pill */}
-        <div className="pb-4 pt-2">
+        <div className="pb-3 sm:pb-4 pt-2 px-1 sm:px-0">
           <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2">
             <button
               onClick={() => setShowAttachPanel(prev => !prev)}
@@ -635,7 +723,7 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
               <Send className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
+          <p className="text-[10px] text-muted-foreground mt-1.5 text-center hidden sm:block">
             Enter to send · Shift+Enter for new line
           </p>
         </div>

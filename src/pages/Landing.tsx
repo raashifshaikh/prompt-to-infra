@@ -48,10 +48,10 @@ const Landing = () => {
             </span>
           </div>
           <div className="hidden md:flex items-center gap-7 text-[13px] font-medium text-muted-foreground">
-            <button onClick={() => navigate('/about')} className="hover:text-foreground transition-colors duration-200">Features</button>
+            <a href="#workflow" className="hover:text-foreground transition-colors duration-200">Features</a>
             <button onClick={() => navigate('/about')} className="hover:text-foreground transition-colors duration-200">Docs</button>
-            <button onClick={() => navigate('/about')} className="hover:text-foreground transition-colors duration-200">Pricing</button>
-            <button onClick={() => navigate('/about')} className="hover:text-foreground transition-colors duration-200">Changelog</button>
+            <a href="#cta" className="hover:text-foreground transition-colors duration-200">Pricing</a>
+            <a href="#audience" className="hover:text-foreground transition-colors duration-200">Who It's For</a>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -151,7 +151,7 @@ const Landing = () => {
       </section>
 
       {/* Workflow Section */}
-      <section className="border-t border-border/30">
+      <section id="workflow" className="border-t border-border/30 scroll-mt-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-24 sm:py-32">
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }}
@@ -246,7 +246,7 @@ const Landing = () => {
       </section>
 
       {/* Who It's For */}
-      <section className="border-t border-border/30">
+      <section id="audience" className="border-t border-border/30 scroll-mt-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-24 sm:py-32">
           <motion.h2
             initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }}
@@ -278,7 +278,7 @@ const Landing = () => {
       </section>
 
       {/* CTA */}
-      <section className="border-t border-border/30">
+      <section id="cta" className="border-t border-border/30 scroll-mt-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-24 sm:py-32">
           <motion.div
             initial={{ opacity: 0, y: 30 }} whileInView={{ opacity: 1, y: 0 }}
@@ -319,7 +319,7 @@ const Landing = () => {
             <a href="#" className="hover:text-foreground transition-colors duration-200">Privacy</a>
             <a href="#" className="hover:text-foreground transition-colors duration-200">Terms</a>
           </div>
-          <p className="text-xs text-muted-foreground">Built by <a href="https://www.instagram.com/_raashif?igsh=bm14Y2FpanVkbHdm" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Raashif</a> • © 2027 Bytebase</p>
+          <p className="text-xs text-muted-foreground">Built by <a href="https://www.instagram.com/_raashif?igsh=bm14Y2FpanVkbHdm" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Raashif</a> • © 2026 Bytebase</p>
         </div>
       </footer>
     </div>
