@@ -1,4 +1,4 @@
-import { FolderOpen, PlusCircle, Settings, Home, BookOpen, MessageSquare } from 'lucide-react';
+import { FolderOpen, PlusCircle, Settings, Home, BookOpen, MessageSquare, Database } from 'lucide-react';
 import logo from '@/assets/logo.png';
 import { NavLink } from '@/components/NavLink';
 import { useLocation } from 'react-router-dom';
