@@ -695,7 +695,7 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
         />
 
         {/* Input Area — Lovable-style pill */}
-        <div className="pb-4 pt-2">
+        <div className="pb-3 sm:pb-4 pt-2 px-1 sm:px-0">
           <div className="flex items-end gap-2 rounded-2xl border border-border bg-card p-2">
             <button
               onClick={() => setShowAttachPanel(prev => !prev)}
@@ -723,7 +723,7 @@ Complexity: ${plan.complexity}. Generate ${plan.estimatedTableCount}+ tables wit
               <Send className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-1.5 text-center">
+          <p className="text-[10px] text-muted-foreground mt-1.5 text-center hidden sm:block">
             Enter to send · Shift+Enter for new line
           </p>
         </div>
