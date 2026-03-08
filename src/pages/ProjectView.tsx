@@ -112,6 +112,9 @@ const ProjectView = () => {
           <Tabs defaultValue={defaultTab}>
             <TabsList className="mb-4">
               <TabsTrigger value="schema">Schema & API</TabsTrigger>
+              <TabsTrigger value="diagram">
+                <GitGraph className="h-3.5 w-3.5 mr-1.5" /> ER Diagram
+              </TabsTrigger>
               <TabsTrigger value="deploy">Deploy & Tutorial</TabsTrigger>
             </TabsList>
 
