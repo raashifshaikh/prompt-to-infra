@@ -149,7 +149,7 @@ const AboutPage = () => {
         {/* Development Timeline */}
         <section>
           <h2 className="text-2xl font-bold mb-2">Development Timeline</h2>
-          <p className="text-muted-foreground mb-6">How BackendForge was built, phase by phase.</p>
+          <p className="text-muted-foreground mb-6"><p className="text-muted-foreground mb-6">How Bytebase was built, phase by phase.</p>, phase by phase.</p>
           <div className="relative">
             <div className="absolute left-[19px] top-0 bottom-0 w-px bg-border/50" />
             <div className="space-y-6">
