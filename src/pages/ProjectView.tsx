@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjects } from '@/context/ProjectContext';
 import { DashboardLayout } from '@/components/DashboardLayout';
@@ -6,11 +6,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X, GitGraph } from 'lucide-react';
+import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X, GitGraph, Play, BookOpen, Settings, Archive } from 'lucide-react';
 import SchemaERDiagram from '@/components/SchemaERDiagram';
+import ApiPlayground from '@/components/ApiPlayground';
+import SwaggerDocs from '@/components/SwaggerDocs';
+import EnvVarsManager from '@/components/EnvVarsManager';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import DeployAndTutorial from '@/components/DeployAndTutorial';
+import { generateProjectZip } from '@/utils/generateProjectZip';
+import { EnvVar } from '@/types/project';
 
 const ProjectView = () => {
   const { id } = useParams<{ id: string }>();
@@ -20,12 +25,12 @@ const ProjectView = () => {
   const project = getProject(id!);
   const [generatedImages, setGeneratedImages] = useState<Record<string, string[]>>({});
   const [generatingFor, setGeneratingFor] = useState<string | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   const defaultTab = searchParams.get('tab') === 'deploy' ? 'deploy' : 'schema';
 
   const result = project?.result ?? null;
 
-  // Count relations for the ER diagram tab label
   const relations = useMemo(() => {
     if (!result?.tables) return [];
     return result.tables.flatMap(t =>
@@ -35,6 +40,29 @@ const ProjectView = () => {
       }))
     );
   }, [result?.tables]);
+
+  const handleEnvVarsChange = useCallback((vars: EnvVar[]) => {
+    if (project) updateProject(project.id, { envVars: vars });
+  }, [project, updateProject]);
+
+  const handleDownloadZip = async () => {
+    if (!project || !result) return;
+    setDownloading(true);
+    try {
+      const blob = await generateProjectZip(project.name, result);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${project.name.toLowerCase().replace(/\s+/g, '-')}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Project downloaded!');
+    } catch (err: any) {
+      toast.error(err.message || 'Download failed');
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   if (!project) {
     return (
@@ -51,7 +79,6 @@ const ProjectView = () => {
     updateProject(project.id, updates);
   };
 
-  // Check if a table likely contains visual entities (products, items, etc.)
   const isImageTable = (tableName: string) => {
     const imageTablePatterns = ['product', 'item', 'listing', 'property', 'course', 'post', 'article', 'menu', 'dish', 'vehicle', 'room', 'event'];
     return imageTablePatterns.some(p => tableName.toLowerCase().includes(p));
@@ -61,18 +88,10 @@ const ProjectView = () => {
     setGeneratingFor(tableName);
     try {
       const prompt = `Professional, high-quality product photography of a ${tableName.replace(/_/g, ' ').replace(/s$/, '')}. Clean white background, studio lighting, modern aesthetic. Photorealistic.`;
-      
-      const { data, error } = await supabase.functions.invoke('generate-image', {
-        body: { prompt },
-      });
-      
+      const { data, error } = await supabase.functions.invoke('generate-image', { body: { prompt } });
       if (error) throw error;
       if (!data.imageUrl) throw new Error('No image generated');
-      
-      setGeneratedImages(prev => ({
-        ...prev,
-        [tableName]: [...(prev[tableName] || []), data.imageUrl],
-      }));
+      setGeneratedImages(prev => ({ ...prev, [tableName]: [...(prev[tableName] || []), data.imageUrl] }));
       toast.success(`Image generated for ${tableName}`);
     } catch (e: any) {
       toast.error(e.message || 'Failed to generate image');
@@ -89,10 +108,7 @@ const ProjectView = () => {
   };
 
   const removeImage = (tableName: string, index: number) => {
-    setGeneratedImages(prev => ({
-      ...prev,
-      [tableName]: (prev[tableName] || []).filter((_, i) => i !== index),
-    }));
+    setGeneratedImages(prev => ({ ...prev, [tableName]: (prev[tableName] || []).filter((_, i) => i !== index) }));
   };
 
   return (
@@ -121,18 +137,20 @@ const ProjectView = () => {
           </Card>
         ) : (
           <Tabs defaultValue={defaultTab}>
-            <TabsList className="mb-4">
-              <TabsTrigger value="schema">Schema & API</TabsTrigger>
-              <TabsTrigger value="diagram">
-                <GitGraph className="h-3.5 w-3.5 mr-1.5" /> ER Diagram
-              </TabsTrigger>
-              <TabsTrigger value="deploy">Deploy & Tutorial</TabsTrigger>
+            <TabsList className="mb-4 flex-wrap h-auto gap-1">
+              <TabsTrigger value="schema">Schema</TabsTrigger>
+              <TabsTrigger value="routes">Routes</TabsTrigger>
+              <TabsTrigger value="docs"><BookOpen className="h-3.5 w-3.5 mr-1" /> Docs</TabsTrigger>
+              <TabsTrigger value="playground"><Play className="h-3.5 w-3.5 mr-1" /> Playground</TabsTrigger>
+              <TabsTrigger value="envvars"><Settings className="h-3.5 w-3.5 mr-1" /> Env Vars</TabsTrigger>
+              <TabsTrigger value="download"><Archive className="h-3.5 w-3.5 mr-1" /> Download</TabsTrigger>
+              <TabsTrigger value="diagram"><GitGraph className="h-3.5 w-3.5 mr-1" /> ER Diagram</TabsTrigger>
+              <TabsTrigger value="deploy">Deploy</TabsTrigger>
             </TabsList>
 
-            {/* Schema & API Tab */}
+            {/* Schema Tab */}
             <TabsContent value="schema">
               <div className="space-y-6">
-                {/* Enums */}
                 {result.enums && result.enums.length > 0 && (
                   <div>
                     <h3 className="text-sm font-medium mb-3">Custom Types (Enums)</h3>
@@ -142,9 +160,7 @@ const ProjectView = () => {
                           <CardContent className="p-3">
                             <span className="text-xs font-mono font-medium text-primary">{e.name}</span>
                             <div className="flex gap-1 mt-1.5 flex-wrap">
-                              {e.values.map(v => (
-                                <Badge key={v} variant="outline" className="text-[10px] font-mono">{v}</Badge>
-                              ))}
+                              {e.values.map(v => <Badge key={v} variant="outline" className="text-[10px] font-mono">{v}</Badge>)}
                             </div>
                           </CardContent>
                         </Card>
@@ -153,7 +169,6 @@ const ProjectView = () => {
                   </div>
                 )}
 
-                {/* Auth & Features Summary */}
                 <Card>
                   <CardContent className="p-4">
                     <div className="flex flex-wrap gap-4">
@@ -177,7 +192,6 @@ const ProjectView = () => {
                   </CardContent>
                 </Card>
 
-                {/* Tables */}
                 <div>
                   <h3 className="text-sm font-medium mb-3">Database Tables ({result.tables.length})</h3>
                   <div className="grid gap-3">
@@ -223,7 +237,6 @@ const ProjectView = () => {
                   </div>
                 </div>
 
-                {/* Indexes */}
                 {result.indexes && result.indexes.length > 0 && (
                   <div>
                     <h3 className="text-sm font-medium mb-3">Indexes</h3>
@@ -239,7 +252,6 @@ const ProjectView = () => {
                   </div>
                 )}
 
-                {/* Storage Buckets */}
                 {result.storageBuckets && result.storageBuckets.length > 0 && (
                   <div>
                     <h3 className="text-sm font-medium mb-3">Storage Buckets</h3>
@@ -276,55 +288,32 @@ const ProjectView = () => {
                   </div>
                 )}
 
-                {/* AI Image Generation */}
                 {result.tables.some(t => isImageTable(t.name)) && (
                   <div>
                     <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
                       <Sparkles className="h-4 w-4 text-primary" /> AI Image Generation
                     </h3>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Generate sample images for your product/entity tables using AI.
-                    </p>
+                    <p className="text-xs text-muted-foreground mb-3">Generate sample images for your product/entity tables using AI.</p>
                     <div className="grid gap-3 sm:grid-cols-2">
                       {result.tables.filter(t => isImageTable(t.name)).map(table => (
                         <Card key={table.name}>
                           <CardContent className="p-3">
                             <div className="flex items-center justify-between mb-2">
                               <span className="text-sm font-mono font-medium">{table.name}</span>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-xs"
-                                onClick={() => handleGenerateImage(table.name)}
-                                disabled={generatingFor === table.name}
-                              >
-                                {generatingFor === table.name ? (
-                                  <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Generating...</>
-                                ) : (
-                                  <><Sparkles className="h-3 w-3 mr-1" /> Generate</>
-                                )}
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleGenerateImage(table.name)} disabled={generatingFor === table.name}>
+                                {generatingFor === table.name ? <><Loader2 className="h-3 w-3 animate-spin mr-1" /> Generating...</> : <><Sparkles className="h-3 w-3 mr-1" /> Generate</>}
                               </Button>
                             </div>
                             {generatedImages[table.name]?.length > 0 && (
                               <div className="flex gap-2 flex-wrap mt-2">
                                 {generatedImages[table.name].map((img, idx) => (
                                   <div key={idx} className="relative group">
-                                    <img
-                                      src={img}
-                                      alt={`Generated ${table.name}`}
-                                      className="h-20 w-20 object-cover rounded-md border border-border"
-                                    />
+                                    <img src={img} alt={`Generated ${table.name}`} className="h-20 w-20 object-cover rounded-md border border-border" />
                                     <div className="absolute inset-0 bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity rounded-md flex items-center justify-center gap-1">
-                                      <button
-                                        onClick={() => handleDownloadImage(img, `${table.name}-${idx}`)}
-                                        className="h-6 w-6 rounded bg-primary/10 flex items-center justify-center hover:bg-primary/20"
-                                      >
+                                      <button onClick={() => handleDownloadImage(img, `${table.name}-${idx}`)} className="h-6 w-6 rounded bg-primary/10 flex items-center justify-center hover:bg-primary/20">
                                         <Download className="h-3 w-3" />
                                       </button>
-                                      <button
-                                        onClick={() => removeImage(table.name, idx)}
-                                        className="h-6 w-6 rounded bg-destructive/10 flex items-center justify-center hover:bg-destructive/20"
-                                      >
+                                      <button onClick={() => removeImage(table.name, idx)} className="h-6 w-6 rounded bg-destructive/10 flex items-center justify-center hover:bg-destructive/20">
                                         <X className="h-3 w-3" />
                                       </button>
                                     </div>
@@ -338,25 +327,64 @@ const ProjectView = () => {
                     </div>
                   </div>
                 )}
-
-                <div>
-                  <h3 className="text-sm font-medium mb-3">API Routes</h3>
-                  <div className="space-y-2">
-                    {result.routes.map((route, i) => (
-                      <Card key={i}>
-                        <CardContent className="p-3 flex items-center gap-3">
-                          <Badge variant="outline" className="font-mono text-xs min-w-[55px] justify-center">
-                            {route.method}
-                          </Badge>
-                          <code className="text-sm font-mono flex-1">{route.path}</code>
-                          <span className="text-xs text-muted-foreground hidden sm:inline">{route.description}</span>
-                          {route.auth_required && <Badge variant="secondary" className="text-xs">Auth</Badge>}
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
               </div>
+            </TabsContent>
+
+            {/* Routes Tab */}
+            <TabsContent value="routes">
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium mb-3">API Routes ({result.routes.length})</h3>
+                {result.routes.map((route, i) => (
+                  <Card key={i}>
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <Badge variant="outline" className="font-mono text-xs min-w-[55px] justify-center">{route.method}</Badge>
+                      <code className="text-sm font-mono flex-1">{route.path}</code>
+                      <span className="text-xs text-muted-foreground hidden sm:inline">{route.description}</span>
+                      {route.auth_required && <Badge variant="secondary" className="text-xs">Auth</Badge>}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </TabsContent>
+
+            {/* Docs Tab */}
+            <TabsContent value="docs">
+              <SwaggerDocs routes={result.routes} tables={result.tables} projectName={project.name} />
+            </TabsContent>
+
+            {/* Playground Tab */}
+            <TabsContent value="playground">
+              <ApiPlayground routes={result.routes} />
+            </TabsContent>
+
+            {/* Env Vars Tab */}
+            <TabsContent value="envvars">
+              <EnvVarsManager
+                envVars={project.envVars || []}
+                onChange={handleEnvVarsChange}
+                supabaseConfig={project.supabaseConfig}
+              />
+            </TabsContent>
+
+            {/* Download Tab */}
+            <TabsContent value="download">
+              <Card>
+                <CardContent className="py-12 text-center space-y-4">
+                  <Archive className="h-12 w-12 mx-auto text-muted-foreground" />
+                  <div>
+                    <h3 className="text-lg font-semibold">Download Backend Project</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Get a complete, production-ready backend with Fastify, Prisma, Docker, and Swagger docs.
+                    </p>
+                  </div>
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    <p>Includes: package.json · Dockerfile · docker-compose.yml · Prisma schema · Routes · .env.example · README</p>
+                  </div>
+                  <Button size="lg" onClick={handleDownloadZip} disabled={downloading}>
+                    {downloading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Generating ZIP...</> : <><Download className="h-4 w-4 mr-2" /> Download {project.name}.zip</>}
+                  </Button>
+                </CardContent>
+              </Card>
             </TabsContent>
 
             {/* ER Diagram Tab */}

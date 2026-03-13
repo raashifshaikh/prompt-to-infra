@@ -14,7 +14,8 @@ serve(async (req) => {
   }
 
   try {
-    const { action, accessToken, projectRef, sql } = await req.json();
+    const body = await req.json();
+    const { action, accessToken, projectRef, sql, secrets } = body;
 
     if (!accessToken) {
       throw new Error("Missing accessToken");
@@ -82,6 +83,25 @@ serve(async (req) => {
           throw new Error(`SQL execution failed: ${err}`);
         }
         result = await res.json();
+        break;
+      }
+
+      case "set-secrets": {
+        if (!projectRef) throw new Error("Missing projectRef");
+        if (!secrets || !Array.isArray(secrets)) throw new Error("Missing secrets array");
+        const res = await fetch(
+          `${API_BASE}/projects/${projectRef}/secrets`,
+          {
+            method: "POST",
+            headers: authHeaders,
+            body: JSON.stringify(secrets),
+          }
+        );
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(`Failed to set secrets: ${err}`);
+        }
+        result = { success: true, count: secrets.length };
         break;
       }
 
