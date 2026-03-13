@@ -85,6 +85,29 @@ serve(async (req) => {
         break;
       }
 
+      case "set-secrets": {
+        if (!projectRef) throw new Error("Missing projectRef");
+        const { secrets } = await req.json().catch(() => ({ secrets: null }));
+        const body = await req.text();
+        const parsed = JSON.parse(body || "{}");
+        const secretsList = parsed.secrets || secrets;
+        if (!secretsList || !Array.isArray(secretsList)) throw new Error("Missing secrets array");
+        const res = await fetch(
+          `${API_BASE}/projects/${projectRef}/secrets`,
+          {
+            method: "POST",
+            headers: authHeaders,
+            body: JSON.stringify(secretsList),
+          }
+        );
+        if (!res.ok) {
+          const err = await res.text();
+          throw new Error(`Failed to set secrets: ${err}`);
+        }
+        result = { success: true, count: secretsList.length };
+        break;
+      }
+
       default:
         throw new Error(`Unknown action: ${action}`);
     }

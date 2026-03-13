@@ -71,6 +71,11 @@ export interface RailwayDeployment {
   status: 'creating' | 'deploying' | 'running' | 'failed';
 }
 
+export interface EnvVar {
+  key: string;
+  value: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -83,4 +88,5 @@ export interface Project {
   firebaseConfig?: { projectId: string; serviceAccountJson: string; connected: boolean };
   railwayDeployment?: RailwayDeployment;
   repoSource?: { type: 'github' | 'upload'; url?: string; analyzedAt?: string };
+  envVars?: EnvVar[];
 }
