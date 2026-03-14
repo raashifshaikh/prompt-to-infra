@@ -404,6 +404,11 @@ const ProjectView = () => {
               </div>
             </TabsContent>
 
+            {/* Security Audit Tab */}
+            <TabsContent value="security">
+              <SecurityAuditPanel result={result} />
+            </TabsContent>
+
             {/* Deploy & Tutorial Tab */}
             <TabsContent value="deploy">
               <DeployAndTutorial project={project} onUpdateProject={handleUpdateProject} />
