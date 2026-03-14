@@ -6,7 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X, GitGraph, Play, BookOpen, Settings, Archive } from 'lucide-react';
+import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X, GitGraph, Play, BookOpen, Settings, Archive, Shield } from 'lucide-react';
+import SecurityAuditPanel from '@/components/SecurityAuditPanel';
 import SchemaERDiagram from '@/components/SchemaERDiagram';
 import ApiPlayground from '@/components/ApiPlayground';
 import SwaggerDocs from '@/components/SwaggerDocs';
@@ -145,6 +146,7 @@ const ProjectView = () => {
               <TabsTrigger value="envvars"><Settings className="h-3.5 w-3.5 mr-1" /> Env Vars</TabsTrigger>
               <TabsTrigger value="download"><Archive className="h-3.5 w-3.5 mr-1" /> Download</TabsTrigger>
               <TabsTrigger value="diagram"><GitGraph className="h-3.5 w-3.5 mr-1" /> ER Diagram</TabsTrigger>
+              <TabsTrigger value="security"><Shield className="h-3.5 w-3.5 mr-1" /> Security</TabsTrigger>
               <TabsTrigger value="deploy">Deploy</TabsTrigger>
             </TabsList>
 
@@ -400,6 +402,11 @@ const ProjectView = () => {
                 </div>
                 <SchemaERDiagram tables={result.tables} />
               </div>
+            </TabsContent>
+
+            {/* Security Audit Tab */}
+            <TabsContent value="security">
+              <SecurityAuditPanel result={result} />
             </TabsContent>
 
             {/* Deploy & Tutorial Tab */}
