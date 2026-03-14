@@ -183,36 +183,43 @@ function generateRLSStatements(tableName: string): string[] {
 function generateStorageBucketSQL(bucket: StorageBucket): { label: string; sql: string }[] {
   const stmts: { label: string; sql: string }[] = [];
   
-  // Create bucket
-  const mimeTypes = bucket.allowedMimeTypes ? `'${JSON.stringify(bucket.allowedMimeTypes)}'::jsonb` : 'NULL';
+  // Create bucket — use only columns that exist in all Supabase versions
   const maxSize = bucket.maxFileSize || 52428800; // 50MB default
   
-  stmts.push({
-    label: `Create storage bucket "${bucket.name}"`,
-    sql: `INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) VALUES ('${bucket.name}', '${bucket.name}', ${bucket.public}, ${maxSize}, ${mimeTypes}) ON CONFLICT (id) DO NOTHING`,
-  });
+  if (bucket.allowedMimeTypes && bucket.allowedMimeTypes.length > 0) {
+    const mimeArray = bucket.allowedMimeTypes.map(m => `'${m}'`).join(', ');
+    stmts.push({
+      label: `Create storage bucket "${bucket.name}"`,
+      sql: `INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) VALUES ('${bucket.name}', '${bucket.name}', ${bucket.public}, ${maxSize}, ARRAY[${mimeArray}]::text[]) ON CONFLICT (id) DO NOTHING`,
+    });
+  } else {
+    stmts.push({
+      label: `Create storage bucket "${bucket.name}"`,
+      sql: `INSERT INTO storage.buckets (id, name, public, file_size_limit) VALUES ('${bucket.name}', '${bucket.name}', ${bucket.public}, ${maxSize}) ON CONFLICT (id) DO NOTHING`,
+    });
+  }
   
-  // Storage RLS policies
+  // Storage RLS policies — wrap in DO blocks for idempotency
   if (bucket.public) {
     stmts.push({
       label: `Allow public read on "${bucket.name}"`,
-      sql: `CREATE POLICY "Public read ${bucket.name}" ON storage.objects FOR SELECT TO public USING (bucket_id = '${bucket.name}')`,
+      sql: `DO $$ BEGIN CREATE POLICY "Public read ${bucket.name}" ON storage.objects FOR SELECT TO public USING (bucket_id = '${bucket.name}'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
     });
   }
   
   stmts.push({
     label: `Allow authenticated upload to "${bucket.name}"`,
-    sql: `CREATE POLICY "Auth upload ${bucket.name}" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = '${bucket.name}')`,
+    sql: `DO $$ BEGIN CREATE POLICY "Auth upload ${bucket.name}" ON storage.objects FOR INSERT TO authenticated WITH CHECK (bucket_id = '${bucket.name}'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   });
   
   stmts.push({
     label: `Allow authenticated update on "${bucket.name}"`,
-    sql: `CREATE POLICY "Auth update ${bucket.name}" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = '${bucket.name}')`,
+    sql: `DO $$ BEGIN CREATE POLICY "Auth update ${bucket.name}" ON storage.objects FOR UPDATE TO authenticated USING (bucket_id = '${bucket.name}'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   });
   
   stmts.push({
     label: `Allow authenticated delete on "${bucket.name}"`,
-    sql: `CREATE POLICY "Auth delete ${bucket.name}" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = '${bucket.name}')`,
+    sql: `DO $$ BEGIN CREATE POLICY "Auth delete ${bucket.name}" ON storage.objects FOR DELETE TO authenticated USING (bucket_id = '${bucket.name}'); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   });
   
   return stmts;
