@@ -163,7 +163,9 @@ const Sidebar = React.forwardRef<
             } as React.CSSProperties
           }
           side={side}
+          aria-describedby={undefined}
         >
+          <SheetPrimitive.Title className="sr-only">Navigation</SheetPrimitive.Title>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>
       </Sheet>

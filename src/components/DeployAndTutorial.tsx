@@ -213,7 +213,7 @@ const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) =>
                 <div className="bg-muted/50 rounded-md p-2 flex items-center gap-2">
                   <Link className="h-3 w-3 text-primary shrink-0" />
                   <span className="text-[10px] font-mono text-muted-foreground truncate">
-                    postgresql://postgres.{projectUrl.match(/([a-z]{10,})/)?.[1] || '...'}:***@...supabase.com:5432/postgres
+                    postgresql://postgres:***@db.{projectUrl.match(/([a-z0-9]{10,})/)?.[1] || '...'}.supabase.co:5432/postgres
                   </span>
                   <Badge variant="outline" className="text-[10px] shrink-0">Auto-built</Badge>
                 </div>
