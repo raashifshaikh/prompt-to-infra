@@ -3,7 +3,7 @@ import { Client } from "https://deno.land/x/postgres@v0.19.3/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 interface TableColumn {
@@ -166,17 +166,17 @@ function generateIndexSQL(idx: IndexDef): string {
 function generateUpdatedAtTrigger(tableName: string): string[] {
   return [
     `CREATE OR REPLACE FUNCTION public.update_updated_at_column() RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ LANGUAGE plpgsql`,
-    `CREATE TRIGGER update_${tableName}_updated_at BEFORE UPDATE ON public."${tableName}" FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column()`,
+    `DO $$ BEGIN CREATE TRIGGER update_${tableName}_updated_at BEFORE UPDATE ON public."${tableName}" FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   ];
 }
 
 function generateRLSStatements(tableName: string): string[] {
   return [
     `ALTER TABLE public."${tableName}" ENABLE ROW LEVEL SECURITY`,
-    `CREATE POLICY "Enable read access for authenticated users" ON public."${tableName}" FOR SELECT TO authenticated USING (true)`,
-    `CREATE POLICY "Enable insert for authenticated users" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (true)`,
-    `CREATE POLICY "Enable update for authenticated users" ON public."${tableName}" FOR UPDATE TO authenticated USING (true) WITH CHECK (true)`,
-    `CREATE POLICY "Enable delete for authenticated users" ON public."${tableName}" FOR DELETE TO authenticated USING (true)`,
+    `DO $$ BEGIN CREATE POLICY "Enable read access for authenticated users" ON public."${tableName}" FOR SELECT TO authenticated USING (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN CREATE POLICY "Enable insert for authenticated users" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN CREATE POLICY "Enable update for authenticated users" ON public."${tableName}" FOR UPDATE TO authenticated USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    `DO $$ BEGIN CREATE POLICY "Enable delete for authenticated users" ON public."${tableName}" FOR DELETE TO authenticated USING (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   ];
 }
 

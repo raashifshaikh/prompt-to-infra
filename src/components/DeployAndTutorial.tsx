@@ -97,9 +97,9 @@ const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) =>
     let projectRef = '';
     
     // Format: https://abcdef.supabase.co or https://supabase.com/dashboard/project/abcdef
-    const dashboardMatch = projectUrl.match(/\/project\/([a-z]+)/);
-    const directMatch = projectUrl.match(/https?:\/\/([a-z]+)\.supabase\.co/);
-    const rawRef = projectUrl.match(/^([a-z]{20,})$/);
+    const dashboardMatch = projectUrl.match(/\/project\/([a-z0-9]+)/);
+    const directMatch = projectUrl.match(/https?:\/\/([a-z0-9]+)\.supabase\.co/);
+    const rawRef = projectUrl.match(/^([a-z0-9]{20,})$/);
 
     if (dashboardMatch) {
       projectRef = dashboardMatch[1];
@@ -110,7 +110,7 @@ const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) =>
     }
 
     if (!projectRef) return '';
-    return `postgresql://postgres.${projectRef}:${encodeURIComponent(dbPassword)}@aws-0-us-east-1.pooler.supabase.com:5432/postgres`;
+    return `postgresql://postgres:${encodeURIComponent(dbPassword)}@db.${projectRef}.supabase.co:5432/postgres`;
   }, [connectionMode, projectUrl, dbPassword, rawDbUrl]);
 
   const handleApply = async () => {
@@ -213,7 +213,7 @@ const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) =>
                 <div className="bg-muted/50 rounded-md p-2 flex items-center gap-2">
                   <Link className="h-3 w-3 text-primary shrink-0" />
                   <span className="text-[10px] font-mono text-muted-foreground truncate">
-                    postgresql://postgres.{projectUrl.match(/([a-z]{10,})/)?.[1] || '...'}:***@...supabase.com:5432/postgres
+                    postgresql://postgres:***@db.{projectUrl.match(/([a-z0-9]{10,})/)?.[1] || '...'}.supabase.co:5432/postgres
                   </span>
                   <Badge variant="outline" className="text-[10px] shrink-0">Auto-built</Badge>
                 </div>
