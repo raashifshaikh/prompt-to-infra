@@ -146,6 +146,7 @@ const ProjectView = () => {
               <TabsTrigger value="envvars"><Settings className="h-3.5 w-3.5 mr-1" /> Env Vars</TabsTrigger>
               <TabsTrigger value="download"><Archive className="h-3.5 w-3.5 mr-1" /> Download</TabsTrigger>
               <TabsTrigger value="diagram"><GitGraph className="h-3.5 w-3.5 mr-1" /> ER Diagram</TabsTrigger>
+              <TabsTrigger value="security"><Shield className="h-3.5 w-3.5 mr-1" /> Security</TabsTrigger>
               <TabsTrigger value="deploy">Deploy</TabsTrigger>
             </TabsList>
 
