@@ -76,6 +76,12 @@ export interface EnvVar {
   value: string;
 }
 
+export interface SchemaSnapshot {
+  result: GenerationResult;
+  timestamp: string;
+  label: string;
+}
+
 export interface Project {
   id: string;
   name: string;
@@ -89,4 +95,6 @@ export interface Project {
   railwayDeployment?: RailwayDeployment;
   repoSource?: { type: 'github' | 'upload'; url?: string; analyzedAt?: string };
   envVars?: EnvVar[];
+  resultHistory?: SchemaSnapshot[];
+  securityScore?: number;
 }
