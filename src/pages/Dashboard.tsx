@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { motion } from 'framer-motion';
-import { PlusCircle, Database, Server, Cloud, HardDrive, Trash2, Search, Sparkles } from 'lucide-react';
+import { PlusCircle, Database, Server, Cloud, HardDrive, Trash2, Search, Sparkles, Shield } from 'lucide-react';
 
 const typeIcons: Record<string, React.ElementType> = {
   supabase: Database,
@@ -113,6 +113,20 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
+                        {project.securityScore !== undefined && (
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] gap-1 ${
+                              project.securityScore >= 80
+                                ? 'text-green-500 border-green-500/30'
+                                : project.securityScore >= 50
+                                  ? 'text-yellow-500 border-yellow-500/30'
+                                  : 'text-red-500 border-red-500/30'
+                            }`}
+                          >
+                            <Shield className="h-2.5 w-2.5" /> {project.securityScore}
+                          </Badge>
+                        )}
                         <Badge variant="outline" className={statusColors[project.status]}>
                           {project.status}
                         </Badge>

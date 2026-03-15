@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useProjects } from '@/context/ProjectContext';
 import { DashboardLayout } from '@/components/DashboardLayout';
@@ -6,17 +6,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X, GitGraph, Play, BookOpen, Settings, Archive, Shield } from 'lucide-react';
-import SecurityAuditPanel from '@/components/SecurityAuditPanel';
+import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X, GitGraph, Play, BookOpen, Settings, Archive, Shield, MessageSquare, History } from 'lucide-react';
+import SecurityAuditPanel, { auditSchema } from '@/components/SecurityAuditPanel';
 import SchemaERDiagram from '@/components/SchemaERDiagram';
 import ApiPlayground from '@/components/ApiPlayground';
 import SwaggerDocs from '@/components/SwaggerDocs';
 import EnvVarsManager from '@/components/EnvVarsManager';
+import SchemaChat from '@/components/SchemaChat';
+import SchemaHistory from '@/components/SchemaHistory';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import DeployAndTutorial from '@/components/DeployAndTutorial';
 import { generateProjectZip } from '@/utils/generateProjectZip';
-import { EnvVar } from '@/types/project';
+import { EnvVar, GenerationResult, SchemaSnapshot } from '@/types/project';
 
 const ProjectView = () => {
   const { id } = useParams<{ id: string }>();
@@ -31,6 +33,31 @@ const ProjectView = () => {
   const defaultTab = searchParams.get('tab') === 'deploy' ? 'deploy' : 'schema';
 
   const result = project?.result ?? null;
+
+  // Auto-audit on mount
+  useEffect(() => {
+    if (result && project && project.securityScore === undefined) {
+      const audit = auditSchema(result);
+      updateProject(project.id, { securityScore: audit.score });
+    }
+  }, [result, project?.id]);
+
+  const snapshotAndUpdate = useCallback((newResult: GenerationResult, label: string) => {
+    if (!project || !result) return;
+    const snapshot: SchemaSnapshot = {
+      result: JSON.parse(JSON.stringify(result)),
+      timestamp: new Date().toISOString(),
+      label,
+    };
+    const history = [...(project.resultHistory || []), snapshot];
+    // Auto-audit new result
+    const audit = auditSchema(newResult);
+    updateProject(project.id, {
+      result: newResult,
+      resultHistory: history,
+      securityScore: audit.score,
+    });
+  }, [project, result, updateProject]);
 
   const relations = useMemo(() => {
     if (!result?.tables) return [];
@@ -126,6 +153,11 @@ const ProjectView = () => {
               {project.repoSource && <> · Imported from {project.repoSource.type}</>}
             </p>
           </div>
+          {project.securityScore !== undefined && (
+            <Badge variant={project.securityScore >= 80 ? 'default' : 'destructive'} className="text-xs gap-1">
+              <Shield className="h-3 w-3" /> {project.securityScore}/100
+            </Badge>
+          )}
         </div>
 
         {!result ? (
@@ -147,6 +179,8 @@ const ProjectView = () => {
               <TabsTrigger value="download"><Archive className="h-3.5 w-3.5 mr-1" /> Download</TabsTrigger>
               <TabsTrigger value="diagram"><GitGraph className="h-3.5 w-3.5 mr-1" /> ER Diagram</TabsTrigger>
               <TabsTrigger value="security"><Shield className="h-3.5 w-3.5 mr-1" /> Security</TabsTrigger>
+              <TabsTrigger value="refine"><MessageSquare className="h-3.5 w-3.5 mr-1" /> Refine</TabsTrigger>
+              <TabsTrigger value="history"><History className="h-3.5 w-3.5 mr-1" /> History</TabsTrigger>
               <TabsTrigger value="deploy">Deploy</TabsTrigger>
             </TabsList>
 
@@ -406,7 +440,29 @@ const ProjectView = () => {
 
             {/* Security Audit Tab */}
             <TabsContent value="security">
-              <SecurityAuditPanel result={result} />
+              <SecurityAuditPanel
+                result={result}
+                onFixApplied={(fixedResult) => snapshotAndUpdate(fixedResult, 'AI Security Auto-Fix')}
+                onScoreChange={(score) => updateProject(project.id, { securityScore: score })}
+              />
+            </TabsContent>
+
+            {/* Refine Tab */}
+            <TabsContent value="refine">
+              <SchemaChat
+                result={result}
+                projectName={project.name}
+                onApplyChanges={(updatedResult) => snapshotAndUpdate(updatedResult, 'Schema Refinement via Chat')}
+              />
+            </TabsContent>
+
+            {/* History Tab */}
+            <TabsContent value="history">
+              <SchemaHistory
+                history={project.resultHistory || []}
+                currentResult={result}
+                onRestore={(restoredResult, label) => snapshotAndUpdate(restoredResult, label)}
+              />
             </TabsContent>
 
             {/* Deploy & Tutorial Tab */}
