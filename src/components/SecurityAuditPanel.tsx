@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Shield, ShieldAlert, ShieldCheck, ShieldX, AlertTriangle, CheckCircle2, XCircle, Loader2, Zap, Wand2 } from 'lucide-react';
 import { GenerationResult, DatabaseTable } from '@/types/project';
-import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export interface SecurityFinding {
