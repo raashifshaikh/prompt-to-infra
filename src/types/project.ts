@@ -90,6 +90,8 @@ export interface Project {
   result: GenerationResult | null;
   createdAt: string;
   status: 'generating' | 'ready' | 'deployed' | 'error';
+  supabaseProjectUrl?: string;
+  supabaseDbPassword?: string;
   supabaseConfig?: { url: string; anonKey: string; serviceRoleKey: string; connected: boolean };
   firebaseConfig?: { projectId: string; serviceAccountJson: string; connected: boolean };
   railwayDeployment?: RailwayDeployment;

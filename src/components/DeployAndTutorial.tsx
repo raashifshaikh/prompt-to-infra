@@ -80,8 +80,9 @@ const TutorialSteps = ({ steps, title }: { steps: TutorialStep[]; title: string 
 const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) => {
   const result = project.result;
   const [connectionMode, setConnectionMode] = useState<'easy' | 'advanced'>('easy');
-  const [projectUrl, setProjectUrl] = useState('');
-  const [dbPassword, setDbPassword] = useState('');
+  const [projectUrl, setProjectUrl] = useState(project.supabaseProjectUrl || '');
+  const [dbPassword, setDbPassword] = useState(project.supabaseDbPassword || '');
+  const [credsSaved, setCredsSaved] = useState(!!(project.supabaseProjectUrl && project.supabaseDbPassword));
   const [rawDbUrl, setRawDbUrl] = useState('');
   const [applying, setApplying] = useState(false);
   const [sql, setSql] = useState('');
@@ -234,10 +235,21 @@ const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) =>
             </div>
           )}
 
-          <Button onClick={handleApply} disabled={applying || !constructedDbUrl} size="sm">
-            {applying ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Database className="h-3.5 w-3.5 mr-1.5" />}
-            Apply Schema
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button onClick={() => {
+              if (projectUrl || dbPassword) {
+                onUpdateProject({ supabaseProjectUrl: projectUrl, supabaseDbPassword: dbPassword });
+                setCredsSaved(true);
+                toast.success('Credentials saved');
+              }
+            }} variant="outline" size="sm" disabled={!projectUrl && !dbPassword}>
+              {credsSaved ? <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5 text-green-500" /> Saved</> : 'Save Credentials'}
+            </Button>
+            <Button onClick={handleApply} disabled={applying || !constructedDbUrl} size="sm">
+              {applying ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Database className="h-3.5 w-3.5 mr-1.5" />}
+              Apply Schema
+            </Button>
+          </div>
 
           {results.length > 0 && (
             <div className="mt-3 space-y-1.5">
