@@ -144,7 +144,7 @@ serve(async (req) => {
   }
 
   try {
-    const { messages, mode } = await req.json();
+    const { messages, mode, stream: requestStream } = await req.json();
 
     const apiMessages = [
       { role: 'system', content: systemPrompt },
@@ -158,7 +158,18 @@ serve(async (req) => {
       });
     }
 
-    const response = await callAIWithFallback(apiMessages, true);
+    // Support non-streaming mode (e.g. for auto-fix)
+    const shouldStream = requestStream !== false;
+
+    const response = await callAIWithFallback(apiMessages, shouldStream);
+
+    if (!shouldStream) {
+      // Return the JSON response directly
+      const data = await response.json();
+      return new Response(JSON.stringify(data), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     return new Response(response.body, {
       headers: { ...corsHeaders, 'Content-Type': 'text/event-stream' },

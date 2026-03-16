@@ -170,19 +170,21 @@ const ProjectView = () => {
           </Card>
         ) : (
           <Tabs defaultValue={defaultTab}>
-            <TabsList className="mb-4 flex-wrap h-auto gap-1">
-              <TabsTrigger value="schema">Schema</TabsTrigger>
-              <TabsTrigger value="routes">Routes</TabsTrigger>
-              <TabsTrigger value="docs"><BookOpen className="h-3.5 w-3.5 mr-1" /> Docs</TabsTrigger>
-              <TabsTrigger value="playground"><Play className="h-3.5 w-3.5 mr-1" /> Playground</TabsTrigger>
-              <TabsTrigger value="envvars"><Settings className="h-3.5 w-3.5 mr-1" /> Env Vars</TabsTrigger>
-              <TabsTrigger value="download"><Archive className="h-3.5 w-3.5 mr-1" /> Download</TabsTrigger>
-              <TabsTrigger value="diagram"><GitGraph className="h-3.5 w-3.5 mr-1" /> ER Diagram</TabsTrigger>
-              <TabsTrigger value="security"><Shield className="h-3.5 w-3.5 mr-1" /> Security</TabsTrigger>
-              <TabsTrigger value="refine"><MessageSquare className="h-3.5 w-3.5 mr-1" /> Refine</TabsTrigger>
-              <TabsTrigger value="history"><History className="h-3.5 w-3.5 mr-1" /> History</TabsTrigger>
-              <TabsTrigger value="deploy">Deploy</TabsTrigger>
-            </TabsList>
+            <div className="mb-4 overflow-x-auto scrollbar-hide">
+              <TabsList className="h-auto gap-1 inline-flex w-max min-w-full">
+                <TabsTrigger value="schema">Schema</TabsTrigger>
+                <TabsTrigger value="routes">Routes</TabsTrigger>
+                <TabsTrigger value="docs"><BookOpen className="h-3.5 w-3.5 mr-1" /> Docs</TabsTrigger>
+                <TabsTrigger value="playground"><Play className="h-3.5 w-3.5 mr-1" /> Play</TabsTrigger>
+                <TabsTrigger value="envvars"><Settings className="h-3.5 w-3.5 mr-1" /> Env</TabsTrigger>
+                <TabsTrigger value="download"><Archive className="h-3.5 w-3.5 mr-1" /> Zip</TabsTrigger>
+                <TabsTrigger value="diagram"><GitGraph className="h-3.5 w-3.5 mr-1" /> ER</TabsTrigger>
+                <TabsTrigger value="security"><Shield className="h-3.5 w-3.5 mr-1" /> Audit</TabsTrigger>
+                <TabsTrigger value="refine"><MessageSquare className="h-3.5 w-3.5 mr-1" /> Refine</TabsTrigger>
+                <TabsTrigger value="history"><History className="h-3.5 w-3.5 mr-1" /> History</TabsTrigger>
+                <TabsTrigger value="deploy">Deploy</TabsTrigger>
+              </TabsList>
+            </div>
 
             {/* Schema Tab */}
             <TabsContent value="schema">

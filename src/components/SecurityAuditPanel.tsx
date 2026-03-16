@@ -287,37 +287,35 @@ Rules:
 
 Return ONLY the corrected JSON:`;
 
-      const { data, error } = await supabase.functions.invoke('chat-backend', {
-        body: {
+      const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-backend`;
+
+      const resp = await fetch(CHAT_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+        body: JSON.stringify({
           messages: [{ role: 'user', content: prompt }],
           mode: 'fix-schema',
-        },
+          stream: false,
+        }),
       });
 
-      if (error) throw error;
-
-      // Parse the response - it may be streaming SSE or direct JSON
-      let responseText = '';
-      if (typeof data === 'string') {
-        // Parse SSE response
-        const lines = data.split('\n');
-        for (const line of lines) {
-          if (line.startsWith('data: ') && line.slice(6).trim() !== '[DONE]') {
-            try {
-              const parsed = JSON.parse(line.slice(6));
-              const content = parsed.choices?.[0]?.delta?.content || parsed.choices?.[0]?.message?.content || '';
-              responseText += content;
-            } catch { /* skip */ }
-          }
-        }
-      } else if (data?.choices?.[0]?.message?.content) {
-        responseText = data.choices[0].message.content;
-      } else if (data?.reply) {
-        responseText = data.reply;
+      if (!resp.ok) {
+        const errText = await resp.text();
+        throw new Error(`AI request failed (${resp.status}): ${errText}`);
       }
 
-      // Extract JSON from response
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      const data = await resp.json();
+      const responseText = data.choices?.[0]?.message?.content || '';
+
+      if (!responseText) throw new Error('AI returned an empty response');
+
+      // Extract JSON from response (may be wrapped in markdown code blocks)
+      const cleaned = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('AI did not return valid JSON');
 
       const fixedResult: GenerationResult = JSON.parse(jsonMatch[0]);
