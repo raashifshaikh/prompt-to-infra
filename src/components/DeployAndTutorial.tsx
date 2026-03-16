@@ -80,8 +80,9 @@ const TutorialSteps = ({ steps, title }: { steps: TutorialStep[]; title: string 
 const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) => {
   const result = project.result;
   const [connectionMode, setConnectionMode] = useState<'easy' | 'advanced'>('easy');
-  const [projectUrl, setProjectUrl] = useState('');
-  const [dbPassword, setDbPassword] = useState('');
+  const [projectUrl, setProjectUrl] = useState(project.supabaseProjectUrl || '');
+  const [dbPassword, setDbPassword] = useState(project.supabaseDbPassword || '');
+  const [credsSaved, setCredsSaved] = useState(!!(project.supabaseProjectUrl && project.supabaseDbPassword));
   const [rawDbUrl, setRawDbUrl] = useState('');
   const [applying, setApplying] = useState(false);
   const [sql, setSql] = useState('');
