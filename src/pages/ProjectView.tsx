@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X, GitGraph, Play, BookOpen, Settings, Archive, Shield, MessageSquare, History } from 'lucide-react';
+import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X, GitGraph, Play, BookOpen, Settings, Archive, Shield, MessageSquare, History, Skull } from 'lucide-react';
 import SecurityAuditPanel, { auditSchema } from '@/components/SecurityAuditPanel';
 import SchemaERDiagram from '@/components/SchemaERDiagram';
 import ApiPlayground from '@/components/ApiPlayground';
@@ -14,6 +14,7 @@ import SwaggerDocs from '@/components/SwaggerDocs';
 import EnvVarsManager from '@/components/EnvVarsManager';
 import SchemaChat from '@/components/SchemaChat';
 import SchemaHistory from '@/components/SchemaHistory';
+import SecurityPenTest from '@/components/SecurityPenTest';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import DeployAndTutorial from '@/components/DeployAndTutorial';
@@ -182,6 +183,7 @@ const ProjectView = () => {
                 <TabsTrigger value="security"><Shield className="h-3.5 w-3.5 mr-1" /> Audit</TabsTrigger>
                 <TabsTrigger value="refine"><MessageSquare className="h-3.5 w-3.5 mr-1" /> Refine</TabsTrigger>
                 <TabsTrigger value="history"><History className="h-3.5 w-3.5 mr-1" /> History</TabsTrigger>
+                <TabsTrigger value="pentest"><Skull className="h-3.5 w-3.5 mr-1" /> PenTest</TabsTrigger>
                 <TabsTrigger value="deploy">Deploy</TabsTrigger>
               </TabsList>
             </div>
@@ -465,6 +467,11 @@ const ProjectView = () => {
                 currentResult={result}
                 onRestore={(restoredResult, label) => snapshotAndUpdate(restoredResult, label)}
               />
+            </TabsContent>
+
+            {/* Penetration Test Tab */}
+            <TabsContent value="pentest">
+              <SecurityPenTest />
             </TabsContent>
 
             {/* Deploy & Tutorial Tab */}
