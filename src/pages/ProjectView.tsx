@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X, GitGraph, Play, BookOpen, Settings, Archive, Shield, MessageSquare, History } from 'lucide-react';
+import { ArrowLeft, HardDrive, Globe, Lock, Image, FileText, Sparkles, Loader2, Download, X, GitGraph, Play, BookOpen, Settings, Archive, Shield, MessageSquare, History, Skull } from 'lucide-react';
 import SecurityAuditPanel, { auditSchema } from '@/components/SecurityAuditPanel';
 import SchemaERDiagram from '@/components/SchemaERDiagram';
 import ApiPlayground from '@/components/ApiPlayground';
