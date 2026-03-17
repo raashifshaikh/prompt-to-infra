@@ -183,6 +183,7 @@ const ProjectView = () => {
                 <TabsTrigger value="security"><Shield className="h-3.5 w-3.5 mr-1" /> Audit</TabsTrigger>
                 <TabsTrigger value="refine"><MessageSquare className="h-3.5 w-3.5 mr-1" /> Refine</TabsTrigger>
                 <TabsTrigger value="history"><History className="h-3.5 w-3.5 mr-1" /> History</TabsTrigger>
+                <TabsTrigger value="pentest"><Skull className="h-3.5 w-3.5 mr-1" /> PenTest</TabsTrigger>
                 <TabsTrigger value="deploy">Deploy</TabsTrigger>
               </TabsList>
             </div>
