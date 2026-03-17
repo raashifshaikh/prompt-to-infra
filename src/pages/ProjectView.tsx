@@ -469,6 +469,11 @@ const ProjectView = () => {
               />
             </TabsContent>
 
+            {/* Penetration Test Tab */}
+            <TabsContent value="pentest">
+              <SecurityPenTest />
+            </TabsContent>
+
             {/* Deploy & Tutorial Tab */}
             <TabsContent value="deploy">
               <DeployAndTutorial project={project} onUpdateProject={handleUpdateProject} />
