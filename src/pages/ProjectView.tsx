@@ -14,6 +14,7 @@ import SwaggerDocs from '@/components/SwaggerDocs';
 import EnvVarsManager from '@/components/EnvVarsManager';
 import SchemaChat from '@/components/SchemaChat';
 import SchemaHistory from '@/components/SchemaHistory';
+import SecurityPenTest from '@/components/SecurityPenTest';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import DeployAndTutorial from '@/components/DeployAndTutorial';
