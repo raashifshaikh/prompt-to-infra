@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.generate-avatar]
 verify_jwt = false
+
+[functions.security-pentest]
+verify_jwt = false
