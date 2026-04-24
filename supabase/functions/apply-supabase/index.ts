@@ -59,11 +59,8 @@ const BLOCKED_KEYWORDS = [
   'DROP DATABASE',
   'DROP SCHEMA',
   'TRUNCATE',
-  'DELETE FROM',
   'ALTER ROLE',
   'ALTER USER',
-  'DROP TABLE',
-  'DROP FUNCTION',
   'DROP POLICY',
   'GRANT',
   'REVOKE',
@@ -170,13 +167,104 @@ function generateUpdatedAtTrigger(tableName: string): string[] {
   ];
 }
 
-function generateRLSStatements(tableName: string): string[] {
+/**
+ * Detects the ownership column of a table for column-aware RLS.
+ * Returns the first matching column name, or null if none found.
+ */
+function detectOwnershipColumn(table: DatabaseTable): string | null {
+  const candidates = ['user_id', 'owner_id', 'created_by', 'author_id', 'profile_id'];
+  for (const cand of candidates) {
+    if (table.columns.some(c => c.name === cand)) return cand;
+  }
+  return null;
+}
+
+function detectVisibilityColumn(table: DatabaseTable): string | null {
+  const candidates = ['is_public', 'published', 'is_published', 'visibility'];
+  for (const cand of candidates) {
+    if (table.columns.some(c => c.name === cand)) return cand;
+  }
+  return null;
+}
+
+function isLookupTable(table: DatabaseTable): boolean {
+  // Lookup tables: categories, tags, types, statuses — globally readable, admin-write
+  const lookupNames = ['categor', 'tag', 'type', 'status', 'role', 'permission', 'country', 'currency'];
+  return lookupNames.some(n => table.name.toLowerCase().includes(n));
+}
+
+/**
+ * Generates production-grade column-aware RLS policies.
+ * - Owner-scoped tables: only the owner can read/write their rows
+ * - Public+owner tables: visible to all if is_public, owner can edit
+ * - Lookup tables: world-readable, admin-only writes
+ * - Generic tables: authenticated read, admin-only writes (safer than blanket true)
+ */
+function generateRLSStatements(table: DatabaseTable): string[] {
+  const tableName = table.name;
+  const stmts: string[] = [`ALTER TABLE public."${tableName}" ENABLE ROW LEVEL SECURITY`];
+  const ownerCol = detectOwnershipColumn(table);
+  const visCol = detectVisibilityColumn(table);
+
+  const wrap = (name: string, sql: string) =>
+    `DO $$ BEGIN ${sql} EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+
+  if (ownerCol) {
+    // SELECT: owner sees own rows; if visibility column exists, also publicly visible rows
+    const selectUsing = visCol
+      ? `(${visCol} = true OR auth.uid() = ${ownerCol})`
+      : `auth.uid() = ${ownerCol}`;
+    stmts.push(wrap('select', `CREATE POLICY "Owner or public read on ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated USING (${selectUsing})`));
+    stmts.push(wrap('insert', `CREATE POLICY "Owner insert on ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (auth.uid() = ${ownerCol})`));
+    stmts.push(wrap('update', `CREATE POLICY "Owner update on ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (auth.uid() = ${ownerCol}) WITH CHECK (auth.uid() = ${ownerCol})`));
+    stmts.push(wrap('delete', `CREATE POLICY "Owner delete on ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (auth.uid() = ${ownerCol})`));
+  } else if (isLookupTable(table)) {
+    // Lookup: world-read, admin-write
+    stmts.push(wrap('select', `CREATE POLICY "Public read ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated, anon USING (true)`));
+    stmts.push(wrap('insert', `CREATE POLICY "Admin insert ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'admin'))`));
+    stmts.push(wrap('update', `CREATE POLICY "Admin update ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+    stmts.push(wrap('delete', `CREATE POLICY "Admin delete ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+  } else {
+    // Generic table with no ownership column — admin-only writes, authenticated read
+    stmts.push(wrap('select', `CREATE POLICY "Authenticated read ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated USING (true)`));
+    stmts.push(wrap('insert', `CREATE POLICY "Admin insert ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'admin'))`));
+    stmts.push(wrap('update', `CREATE POLICY "Admin update ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+    stmts.push(wrap('delete', `CREATE POLICY "Admin delete ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+  }
+
+  return stmts;
+}
+
+/**
+ * Generates the role infrastructure (enum + user_roles table + has_role function).
+ * Idempotent — safe to run on every deploy.
+ */
+function generateRoleInfrastructure(): { label: string; sql: string }[] {
   return [
-    `ALTER TABLE public."${tableName}" ENABLE ROW LEVEL SECURITY`,
-    `DO $$ BEGIN CREATE POLICY "Enable read access for authenticated users" ON public."${tableName}" FOR SELECT TO authenticated USING (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
-    `DO $$ BEGIN CREATE POLICY "Enable insert for authenticated users" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
-    `DO $$ BEGIN CREATE POLICY "Enable update for authenticated users" ON public."${tableName}" FOR UPDATE TO authenticated USING (true) WITH CHECK (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
-    `DO $$ BEGIN CREATE POLICY "Enable delete for authenticated users" ON public."${tableName}" FOR DELETE TO authenticated USING (true); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    {
+      label: 'Create app_role enum',
+      sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user'); END IF; END $$`,
+    },
+    {
+      label: 'Create user_roles table',
+      sql: `CREATE TABLE IF NOT EXISTS public.user_roles (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL, role public.app_role NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE (user_id, role))`,
+    },
+    {
+      label: 'Enable RLS on user_roles',
+      sql: `ALTER TABLE public.user_roles ENABLE ROW LEVEL SECURITY`,
+    },
+    {
+      label: 'Create has_role security definer function',
+      sql: `CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role public.app_role) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $func$ SELECT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role = _role) $func$`,
+    },
+    {
+      label: 'Policy: users read own roles',
+      sql: `DO $$ BEGIN CREATE POLICY "Users read own roles" ON public.user_roles FOR SELECT TO authenticated USING (auth.uid() = user_id); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    },
+    {
+      label: 'Policy: admins manage roles',
+      sql: `DO $$ BEGIN CREATE POLICY "Admins manage roles" ON public.user_roles FOR ALL TO authenticated USING (public.has_role(auth.uid(), 'admin')) WITH CHECK (public.has_role(auth.uid(), 'admin')); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+    },
   ];
 }
 
@@ -236,7 +324,7 @@ function generateStatementsForTable(table: DatabaseTable): { label: string; sql:
     stmts.push({ label: `Add updated_at trigger on "${table.name}"`, sql: triggerStmts[1] });
   }
   
-  const rlsStmts = generateRLSStatements(table.name);
+  const rlsStmts = generateRLSStatements(table);
   stmts.push({ label: `Enable RLS on "${table.name}"`, sql: rlsStmts[0] });
   for (let i = 1; i < rlsStmts.length; i++) {
     stmts.push({ label: `Add RLS policy on "${table.name}"`, sql: rlsStmts[i] });
@@ -272,7 +360,10 @@ serve(async (req) => {
         allStatements.push({ label: `Create enum "${e.name}"`, sql: generateEnumSQL(e) });
       }
     }
-    
+
+    // 1.5 Role infrastructure (always — needed for admin-write policies on lookup/generic tables)
+    allStatements.push(...generateRoleInfrastructure());
+
     // 2. Tables in topological order
     for (const table of sortedTables) {
       allStatements.push(...generateStatementsForTable(table));

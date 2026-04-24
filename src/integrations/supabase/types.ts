@@ -41,6 +41,66 @@ export type Database = {
         }
         Relationships: []
       }
+      projects: {
+        Row: {
+          backend_type: string
+          created_at: string
+          env_vars: Json | null
+          firebase_config: Json | null
+          id: string
+          name: string
+          prompt: string
+          railway_deployment: Json | null
+          repo_source: Json | null
+          result: Json | null
+          result_history: Json | null
+          security_score: number | null
+          status: string
+          supabase_config: Json | null
+          supabase_db_password: string | null
+          supabase_project_url: string | null
+          user_id: string
+        }
+        Insert: {
+          backend_type?: string
+          created_at?: string
+          env_vars?: Json | null
+          firebase_config?: Json | null
+          id?: string
+          name: string
+          prompt?: string
+          railway_deployment?: Json | null
+          repo_source?: Json | null
+          result?: Json | null
+          result_history?: Json | null
+          security_score?: number | null
+          status?: string
+          supabase_config?: Json | null
+          supabase_db_password?: string | null
+          supabase_project_url?: string | null
+          user_id: string
+        }
+        Update: {
+          backend_type?: string
+          created_at?: string
+          env_vars?: Json | null
+          firebase_config?: Json | null
+          id?: string
+          name?: string
+          prompt?: string
+          railway_deployment?: Json | null
+          repo_source?: Json | null
+          result?: Json | null
+          result_history?: Json | null
+          security_score?: number | null
+          status?: string
+          supabase_config?: Json | null
+          supabase_db_password?: string | null
+          supabase_project_url?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

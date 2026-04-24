@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, Database, Flame, Copy, Download, CheckCircle2, XCircle, AlertCircle, Server, Cloud, Terminal, FileDown, HelpCircle, Link } from 'lucide-react';
+import { Loader2, Database, Flame, Copy, Download, CheckCircle2, XCircle, AlertCircle, Server, Cloud, Terminal, FileDown, HelpCircle, Link, DownloadCloud } from 'lucide-react';
 import { Project, TutorialStep } from '@/types/project';
 
 interface DeployAndTutorialProps {
@@ -85,6 +85,7 @@ const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) =>
   const [credsSaved, setCredsSaved] = useState(!!(project.supabaseProjectUrl && project.supabaseDbPassword));
   const [rawDbUrl, setRawDbUrl] = useState('');
   const [applying, setApplying] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [sql, setSql] = useState('');
   const [results, setResults] = useState<MigrationResult[]>([]);
   const [error, setError] = useState('');
@@ -147,6 +148,28 @@ const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) =>
       toast.error(e.message || 'Failed to apply schema');
     } finally {
       setApplying(false);
+    }
+  };
+
+  const handleImportExisting = async () => {
+    const dbUrl = constructedDbUrl;
+    if (!dbUrl) {
+      toast.error('Enter your Supabase project URL and database password first');
+      return;
+    }
+    setImporting(true);
+    try {
+      const { data, error: err } = await supabase.functions.invoke('introspect-supabase', {
+        body: { dbUrl },
+      });
+      if (err) throw err;
+      if (!data?.success || !data.result) throw new Error(data?.error || 'Import failed');
+      onUpdateProject({ result: data.result });
+      toast.success(`Imported ${data.result.tables.length} tables from your existing Supabase project`);
+    } catch (e: any) {
+      toast.error(e.message || 'Failed to import existing schema');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -248,6 +271,10 @@ const SupabaseDeploy = ({ project, onUpdateProject }: DeployAndTutorialProps) =>
             <Button onClick={handleApply} disabled={applying || !constructedDbUrl} size="sm">
               {applying ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Database className="h-3.5 w-3.5 mr-1.5" />}
               Apply Schema
+            </Button>
+            <Button onClick={handleImportExisting} disabled={importing || !constructedDbUrl} size="sm" variant="secondary">
+              {importing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <DownloadCloud className="h-3.5 w-3.5 mr-1.5" />}
+              Import Existing
             </Button>
           </div>
 
