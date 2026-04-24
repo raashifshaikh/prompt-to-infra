@@ -38,3 +38,6 @@ verify_jwt = false
 
 [functions.security-pentest]
 verify_jwt = false
+
+[functions.introspect-supabase]
+verify_jwt = false
