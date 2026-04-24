@@ -324,7 +324,7 @@ function generateStatementsForTable(table: DatabaseTable): { label: string; sql:
     stmts.push({ label: `Add updated_at trigger on "${table.name}"`, sql: triggerStmts[1] });
   }
   
-  const rlsStmts = generateRLSStatements(table.name);
+  const rlsStmts = generateRLSStatements(table);
   stmts.push({ label: `Enable RLS on "${table.name}"`, sql: rlsStmts[0] });
   for (let i = 1; i < rlsStmts.length; i++) {
     stmts.push({ label: `Add RLS policy on "${table.name}"`, sql: rlsStmts[i] });
@@ -360,7 +360,10 @@ serve(async (req) => {
         allStatements.push({ label: `Create enum "${e.name}"`, sql: generateEnumSQL(e) });
       }
     }
-    
+
+    // 1.5 Role infrastructure (always — needed for admin-write policies on lookup/generic tables)
+    allStatements.push(...generateRoleInfrastructure());
+
     // 2. Tables in topological order
     for (const table of sortedTables) {
       allStatements.push(...generateStatementsForTable(table));
