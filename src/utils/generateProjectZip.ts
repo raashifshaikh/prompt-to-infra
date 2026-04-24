@@ -162,6 +162,7 @@ volumes:
 const generatePackageJson = (projectName: string): string => JSON.stringify({
   name: projectName.toLowerCase().replace(/\s+/g, '-'),
   version: '1.0.0',
+  type: 'module',
   scripts: {
     dev: 'tsx watch src/server.ts',
     build: 'tsc',
@@ -245,7 +246,8 @@ export const generateProjectZip = async (projectName: string, result: Generation
   root.file('README.md', generateReadme(projectName, result));
   root.file('tsconfig.json', JSON.stringify({
     compilerOptions: {
-      target: 'ES2022', module: 'commonjs', outDir: './dist', rootDir: './src',
+      target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext',
+      outDir: './dist', rootDir: './src',
       strict: true, esModuleInterop: true, skipLibCheck: true, resolveJsonModule: true,
     },
     include: ['src/**/*'],
