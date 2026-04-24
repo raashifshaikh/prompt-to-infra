@@ -259,12 +259,15 @@ const SecurityAuditPanel = ({ result, onFixApplied, onScoreChange }: SecurityAud
   const handleAutoFix = async () => {
     if (!auditResult || auditResult.findings.length === 0) return;
     setIsFixing(true);
+    const MAX_RETRIES = 3;
+    let lastError = '';
+
     try {
       const findingsText = auditResult.findings.map(f =>
         `[${f.severity.toUpperCase()}] ${f.title}: ${f.description}${f.fix ? ` Fix: ${f.fix}` : ''}`
       ).join('\n');
 
-      const prompt = `You are a database security expert. Here is the current backend schema JSON and a list of security/integrity findings. Fix ALL issues and return ONLY a valid JSON object matching the GenerationResult schema — no markdown, no explanation, just JSON.
+      const basePrompt = `You are a database security expert. Here is the current backend schema JSON and a list of security/integrity findings. Fix ALL issues and return ONLY a valid JSON object matching the GenerationResult schema — no markdown, no explanation, just JSON.
 
 CURRENT SCHEMA:
 ${JSON.stringify(result, null, 2)}
@@ -283,55 +286,102 @@ Rules:
 - Add indexes for foreign key columns
 - Set sensitive storage buckets to private
 - Keep all existing tables/routes/features that are not security issues
+- The result MUST include: tables (array), routes (array), auth (object with enabled/providers/roles), features (array)
+- Each table MUST have: name (string), columns (array of {name, type, ...})
 
 Return ONLY the corrected JSON:`;
 
       const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat-backend`;
 
-      const resp = await fetch(CHAT_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-          'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-        },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: prompt }],
-          mode: 'fix-schema',
-          stream: false,
-        }),
-      });
+      let fixedResult: GenerationResult | null = null;
+      let prompt = basePrompt;
 
-      if (!resp.ok) {
-        const errText = await resp.text();
-        throw new Error(`AI request failed (${resp.status}): ${errText}`);
+      for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+        try {
+          toast.message(`AI auto-fix attempt ${attempt}/${MAX_RETRIES}...`);
+          const resp = await fetch(CHAT_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            },
+            body: JSON.stringify({
+              messages: [{ role: 'user', content: prompt }],
+              mode: 'fix-schema',
+              stream: false,
+            }),
+          });
+
+          if (!resp.ok) {
+            const errText = await resp.text();
+            lastError = `AI request failed (${resp.status}): ${errText.slice(0, 200)}`;
+            continue;
+          }
+
+          const data = await resp.json();
+          const responseText = data.choices?.[0]?.message?.content || '';
+          if (!responseText) {
+            lastError = 'AI returned an empty response';
+            continue;
+          }
+
+          // Extract JSON
+          const cleaned = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+          const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+          if (!jsonMatch) {
+            lastError = 'AI did not return valid JSON';
+            prompt = `${basePrompt}\n\nYour previous response did not contain valid JSON. Return ONLY a JSON object, no prose, no markdown.`;
+            continue;
+          }
+
+          let candidate: GenerationResult;
+          try {
+            candidate = JSON.parse(jsonMatch[0]);
+          } catch (parseErr: any) {
+            lastError = `JSON parse error: ${parseErr.message}`;
+            prompt = `${basePrompt}\n\nYour previous JSON had a syntax error: ${parseErr.message}. Return clean valid JSON.`;
+            continue;
+          }
+
+          // Validate structure
+          const validationErrors: string[] = [];
+          if (!candidate.tables || !Array.isArray(candidate.tables)) validationErrors.push('tables must be an array');
+          if (!candidate.routes || !Array.isArray(candidate.routes)) validationErrors.push('routes must be an array');
+          if (!candidate.auth || typeof candidate.auth !== 'object') validationErrors.push('auth must be an object');
+          if (!candidate.features || !Array.isArray(candidate.features)) validationErrors.push('features must be an array');
+          if (candidate.tables) {
+            candidate.tables.forEach((t: DatabaseTable, i: number) => {
+              if (!t.name) validationErrors.push(`tables[${i}] missing name`);
+              if (!t.columns || !Array.isArray(t.columns)) validationErrors.push(`tables[${i}] missing columns array`);
+            });
+          }
+
+          if (validationErrors.length > 0) {
+            lastError = `Validation failed: ${validationErrors.join('; ')}`;
+            prompt = `${basePrompt}\n\nYour previous response had these errors: ${validationErrors.join('; ')}. Fix them and return clean JSON.`;
+            continue;
+          }
+
+          fixedResult = candidate;
+          break;
+        } catch (e: any) {
+          lastError = e.message || 'Unknown error';
+        }
       }
 
-      const data = await resp.json();
-      const responseText = data.choices?.[0]?.message?.content || '';
-
-      if (!responseText) throw new Error('AI returned an empty response');
-
-      // Extract JSON from response (may be wrapped in markdown code blocks)
-      const cleaned = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '');
-      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('AI did not return valid JSON');
-
-      const fixedResult: GenerationResult = JSON.parse(jsonMatch[0]);
-
-      // Validate basic structure
-      if (!fixedResult.tables || !fixedResult.routes || !fixedResult.auth) {
-        throw new Error('Fixed schema is missing required fields');
+      if (!fixedResult) {
+        throw new Error(`Auto-fix failed after ${MAX_RETRIES} attempts. Last error: ${lastError}`);
       }
 
       onFixApplied?.(fixedResult);
-
-      // Re-audit the fixed schema
       const newAudit = auditSchema(fixedResult);
       setAuditResult(newAudit);
       onScoreChange?.(newAudit.score);
-
-      toast.success(`Schema fixed! Score improved to ${newAudit.score}/100 (Grade ${newAudit.grade})`);
+      const delta = newAudit.score - (auditResult?.score || 0);
+      toast.success(
+        `Schema fixed! Score: ${newAudit.score}/100 (${delta >= 0 ? '+' : ''}${delta}) — Grade ${newAudit.grade}`
+      );
     } catch (err: any) {
       console.error('Auto-fix error:', err);
       toast.error(err.message || 'Failed to auto-fix schema');
