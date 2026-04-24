@@ -50,8 +50,10 @@ const mapToPrismaType = (sqlType: string): string => {
   return 'String';
 };
 
+const routeFileName = (method: string, path: string): string =>
+  `${method.toLowerCase()}-${path.replace(/\//g, '-').replace(/:/g, '').replace(/^-/, '') || 'root'}.ts`;
+
 const generateRouteFile = (method: string, path: string, description: string): string => {
-  const handlerName = `${method.toLowerCase()}${path.split('/').filter(p => p && !p.startsWith(':')).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join('')}`;
   return `import { FastifyInstance } from 'fastify';
 
 export default async function (fastify: FastifyInstance) {
@@ -64,11 +66,27 @@ export default async function (fastify: FastifyInstance) {
 `;
 };
 
+const generateRoutesIndex = (routes: { method: string; path: string }[]): string => {
+  const imports = routes.map((r, i) => {
+    const fname = routeFileName(r.method, r.path).replace(/\.ts$/, '');
+    return `import route${i} from './${fname}.js';`;
+  }).join('\n');
+  const registers = routes.map((_, i) => `  await fastify.register(route${i});`).join('\n');
+  return `import { FastifyInstance } from 'fastify';
+${imports}
+
+export async function registerRoutes(fastify: FastifyInstance) {
+${registers}
+}
+`;
+};
+
 const generateServerTs = (projectName: string): string => `import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import { PrismaClient } from '@prisma/client';
+import { registerRoutes } from './routes/index.js';
 
 const prisma = new PrismaClient();
 const app = Fastify({ logger: true });
@@ -85,7 +103,7 @@ async function start() {
 
   app.get('/health', async () => ({ status: 'ok' }));
 
-  // TODO: Register route files here
+  await registerRoutes(app);
 
   const port = parseInt(process.env.PORT || '3000');
   await app.listen({ port, host: '0.0.0.0' });
@@ -243,9 +261,10 @@ export const generateProjectZip = async (projectName: string, result: Generation
 
   const routesDir = srcDir.folder('routes')!;
   result.routes.forEach(route => {
-    const fileName = `${route.method.toLowerCase()}-${route.path.replace(/\//g, '-').replace(/:/g, '').replace(/^-/, '')}.ts`;
+    const fileName = routeFileName(route.method, route.path);
     routesDir.file(fileName, generateRouteFile(route.method, route.path, route.description));
   });
+  routesDir.file('index.ts', generateRoutesIndex(result.routes));
 
   return await zip.generateAsync({ type: 'blob' });
 };
