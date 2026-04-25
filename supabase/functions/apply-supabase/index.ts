@@ -194,22 +194,83 @@ function isLookupTable(table: DatabaseTable): boolean {
 }
 
 /**
+ * Detects sensitive tables that must NEVER be world-readable.
+ * Banking, medical, audit, security, payment data — read access requires
+ * explicit ownership match or admin/staff role.
+ */
+function isSensitiveTable(table: DatabaseTable): { sensitive: boolean; readerRoles: string[] } {
+  const name = table.name.toLowerCase();
+  // Banking / finance
+  const bankingHints = ['transaction', 'transfer', 'ledger', 'account', 'balance', 'card', 'payment', 'invoice', 'loan', 'beneficiar', 'standing_order', 'wire', 'ach', 'kyc', 'fraud', 'compliance', 'aml'];
+  // Medical
+  const medicalHints = ['patient', 'medical', 'prescription', 'diagnos', 'lab_result', 'health', 'insurance_claim', 'phi'];
+  // Audit / security / private comms
+  const auditHints = ['audit', 'security_log', 'access_log', 'session', 'api_key', 'webhook', 'secret', 'private_key', 'message', 'support_ticket', 'support_message', 'complaint'];
+
+  if (bankingHints.some(h => name.includes(h))) {
+    return { sensitive: true, readerRoles: ['admin', 'manager', 'compliance_officer', 'teller'] };
+  }
+  if (medicalHints.some(h => name.includes(h))) {
+    return { sensitive: true, readerRoles: ['admin', 'doctor', 'nurse'] };
+  }
+  if (auditHints.some(h => name.includes(h))) {
+    return { sensitive: true, readerRoles: ['admin', 'compliance_officer'] };
+  }
+  return { sensitive: false, readerRoles: [] };
+}
+
+function buildRoleCheck(roles: string[]): string {
+  // OR-chain of has_role(uid, 'role') — wraps in parens
+  return roles.map(r => `public.has_role(auth.uid(), '${r}')`).join(' OR ');
+}
+
+/**
  * Generates production-grade column-aware RLS policies.
  * - Owner-scoped tables: only the owner can read/write their rows
  * - Public+owner tables: visible to all if is_public, owner can edit
  * - Lookup tables: world-readable, admin-only writes
+ * - Sensitive tables (banking/medical/audit): private — owner OR specific staff roles only
  * - Generic tables: authenticated read, admin-only writes (safer than blanket true)
  */
 function generateRLSStatements(table: DatabaseTable): string[] {
   const tableName = table.name;
   const stmts: string[] = [`ALTER TABLE public."${tableName}" ENABLE ROW LEVEL SECURITY`];
+
+  // Skip auto-policy generation for user_roles — the role infrastructure block
+  // already adds the correct admin-only INSERT/UPDATE/DELETE + owner SELECT policies.
+  // Auto-generating an "Owner insert" here would let anyone grant themselves any role.
+  if (tableName === 'user_roles') {
+    return stmts;
+  }
+
   const ownerCol = detectOwnershipColumn(table);
   const visCol = detectVisibilityColumn(table);
+  const { sensitive, readerRoles } = isSensitiveTable(table);
 
   const wrap = (name: string, sql: string) =>
     `DO $$ BEGIN ${sql}; EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
-  if (ownerCol) {
+  if (sensitive) {
+    // Sensitive (banking/medical/audit) — never permissive.
+    // Read: owner (if owner column exists) OR specified staff roles. No owner col → staff-only.
+    const roleCheck = buildRoleCheck(readerRoles);
+    const selectUsing = ownerCol
+      ? `(auth.uid() = ${ownerCol} OR ${roleCheck})`
+      : `(${roleCheck})`;
+    stmts.push(wrap('select', `CREATE POLICY "Owner or staff read on ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated USING (${selectUsing})`));
+
+    // Insert: owner (if applicable) OR staff. Owner must match auth.uid() in WITH CHECK.
+    const insertCheck = ownerCol
+      ? `(auth.uid() = ${ownerCol} OR ${roleCheck})`
+      : `(${roleCheck})`;
+    stmts.push(wrap('insert', `CREATE POLICY "Owner or staff insert on ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (${insertCheck})`));
+
+    // Update: staff-only (sensitive records like transactions should be immutable to customers).
+    stmts.push(wrap('update', `CREATE POLICY "Staff update on ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (${roleCheck}) WITH CHECK (${roleCheck})`));
+
+    // Delete: admin-only.
+    stmts.push(wrap('delete', `CREATE POLICY "Admin delete on ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+  } else if (ownerCol) {
     // SELECT: owner sees own rows; if visibility column exists, also publicly visible rows
     const selectUsing = visCol
       ? `(${visCol} = true OR auth.uid() = ${ownerCol})`
