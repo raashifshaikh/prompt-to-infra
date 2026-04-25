@@ -194,22 +194,83 @@ function isLookupTable(table: DatabaseTable): boolean {
 }
 
 /**
+ * Detects sensitive tables that must NEVER be world-readable.
+ * Banking, medical, audit, security, payment data — read access requires
+ * explicit ownership match or admin/staff role.
+ */
+function isSensitiveTable(table: DatabaseTable): { sensitive: boolean; readerRoles: string[] } {
+  const name = table.name.toLowerCase();
+  // Banking / finance
+  const bankingHints = ['transaction', 'transfer', 'ledger', 'account', 'balance', 'card', 'payment', 'invoice', 'loan', 'beneficiar', 'standing_order', 'wire', 'ach', 'kyc', 'fraud', 'compliance', 'aml'];
+  // Medical
+  const medicalHints = ['patient', 'medical', 'prescription', 'diagnos', 'lab_result', 'health', 'insurance_claim', 'phi'];
+  // Audit / security / private comms
+  const auditHints = ['audit', 'security_log', 'access_log', 'session', 'api_key', 'webhook', 'secret', 'private_key', 'message', 'support_ticket', 'support_message', 'complaint'];
+
+  if (bankingHints.some(h => name.includes(h))) {
+    return { sensitive: true, readerRoles: ['admin', 'manager', 'compliance_officer', 'teller'] };
+  }
+  if (medicalHints.some(h => name.includes(h))) {
+    return { sensitive: true, readerRoles: ['admin', 'doctor', 'nurse'] };
+  }
+  if (auditHints.some(h => name.includes(h))) {
+    return { sensitive: true, readerRoles: ['admin', 'compliance_officer'] };
+  }
+  return { sensitive: false, readerRoles: [] };
+}
+
+function buildRoleCheck(roles: string[]): string {
+  // OR-chain of has_role(uid, 'role') — wraps in parens
+  return roles.map(r => `public.has_role(auth.uid(), '${r}')`).join(' OR ');
+}
+
+/**
  * Generates production-grade column-aware RLS policies.
  * - Owner-scoped tables: only the owner can read/write their rows
  * - Public+owner tables: visible to all if is_public, owner can edit
  * - Lookup tables: world-readable, admin-only writes
+ * - Sensitive tables (banking/medical/audit): private — owner OR specific staff roles only
  * - Generic tables: authenticated read, admin-only writes (safer than blanket true)
  */
 function generateRLSStatements(table: DatabaseTable): string[] {
   const tableName = table.name;
   const stmts: string[] = [`ALTER TABLE public."${tableName}" ENABLE ROW LEVEL SECURITY`];
+
+  // Skip auto-policy generation for user_roles — the role infrastructure block
+  // already adds the correct admin-only INSERT/UPDATE/DELETE + owner SELECT policies.
+  // Auto-generating an "Owner insert" here would let anyone grant themselves any role.
+  if (tableName === 'user_roles') {
+    return stmts;
+  }
+
   const ownerCol = detectOwnershipColumn(table);
   const visCol = detectVisibilityColumn(table);
+  const { sensitive, readerRoles } = isSensitiveTable(table);
 
   const wrap = (name: string, sql: string) =>
     `DO $$ BEGIN ${sql}; EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
-  if (ownerCol) {
+  if (sensitive) {
+    // Sensitive (banking/medical/audit) — never permissive.
+    // Read: owner (if owner column exists) OR specified staff roles. No owner col → staff-only.
+    const roleCheck = buildRoleCheck(readerRoles);
+    const selectUsing = ownerCol
+      ? `(auth.uid() = ${ownerCol} OR ${roleCheck})`
+      : `(${roleCheck})`;
+    stmts.push(wrap('select', `CREATE POLICY "Owner or staff read on ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated USING (${selectUsing})`));
+
+    // Insert: owner (if applicable) OR staff. Owner must match auth.uid() in WITH CHECK.
+    const insertCheck = ownerCol
+      ? `(auth.uid() = ${ownerCol} OR ${roleCheck})`
+      : `(${roleCheck})`;
+    stmts.push(wrap('insert', `CREATE POLICY "Owner or staff insert on ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (${insertCheck})`));
+
+    // Update: staff-only (sensitive records like transactions should be immutable to customers).
+    stmts.push(wrap('update', `CREATE POLICY "Staff update on ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (${roleCheck}) WITH CHECK (${roleCheck})`));
+
+    // Delete: admin-only.
+    stmts.push(wrap('delete', `CREATE POLICY "Admin delete on ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+  } else if (ownerCol) {
     // SELECT: owner sees own rows; if visibility column exists, also publicly visible rows
     const selectUsing = visCol
       ? `(${visCol} = true OR auth.uid() = ${ownerCol})`
@@ -239,11 +300,30 @@ function generateRLSStatements(table: DatabaseTable): string[] {
  * Generates the role infrastructure (enum + user_roles table + has_role function).
  * Idempotent — safe to run on every deploy.
  */
-function generateRoleInfrastructure(): { label: string; sql: string }[] {
+function generateRoleInfrastructure(extraRoles: string[] = []): { label: string; sql: string }[] {
+  // Always include these baseline roles
+  const baseline = ['admin', 'moderator', 'user'];
+  // Extra roles from sensitive-table detection (banking/medical/etc.) and user-supplied auth.roles
+  const allRoles = Array.from(new Set([...baseline, ...extraRoles.filter(r => /^[a-z_][a-z0-9_]*$/i.test(r))]));
+  const enumValues = allRoles.map(r => `'${r}'`).join(', ');
+  // Build ADD VALUE statements (idempotent — IF NOT EXISTS is supported in PG ≥ 9.6)
+  const addValueStmts = allRoles
+    .map(r => `ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS '${r}';`)
+    .join(' ');
   return [
     {
-      label: 'Create app_role enum',
-      sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user'); END IF; END $$`,
+      label: 'Create app_role enum (with all referenced roles)',
+      sql: `DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN
+          CREATE TYPE public.app_role AS ENUM (${enumValues});
+        END IF;
+      END $$`,
+    },
+    {
+      // Run ADD VALUE outside the BEGIN/END block — Postgres requires ALTER TYPE ADD VALUE
+      // to run in its own transaction, so we keep each as a top-level statement.
+      label: 'Ensure all roles exist in app_role enum',
+      sql: `DO $$ BEGIN ${addValueStmts} EXCEPTION WHEN others THEN NULL; END $$`,
     },
     {
       label: 'Create user_roles table',
@@ -338,7 +418,7 @@ serve(async (req) => {
   }
 
   try {
-    const { tables, enums, indexes, storageBuckets, dbUrl } = await req.json();
+    const { tables, enums, indexes, storageBuckets, dbUrl, auth } = await req.json();
 
     if (!dbUrl) {
       throw new Error('Database connection URL is required. Use the direct connection string (port 5432) from Supabase Settings > Database.');
@@ -357,12 +437,28 @@ serve(async (req) => {
     // 1. Enums first
     if (enums && Array.isArray(enums)) {
       for (const e of enums as EnumType[]) {
+        // Skip app_role here — generateRoleInfrastructure handles it with merged roles.
+        if (e.name === 'app_role') continue;
         allStatements.push({ label: `Create enum "${e.name}"`, sql: generateEnumSQL(e) });
       }
     }
 
-    // 1.5 Role infrastructure (always — needed for admin-write policies on lookup/generic tables)
-    allStatements.push(...generateRoleInfrastructure());
+    // 1.5 Role infrastructure — collect every role referenced anywhere:
+    //   • baseline (admin/moderator/user) — always present
+    //   • auth.roles from the generation result
+    //   • staff roles from sensitive-table detection (teller/manager/doctor/etc.)
+    //   • values from the incoming app_role enum if present
+    const extraRoles: string[] = [];
+    if (auth && Array.isArray(auth.roles)) extraRoles.push(...auth.roles);
+    if (enums && Array.isArray(enums)) {
+      const appRoleEnum = (enums as EnumType[]).find(e => e.name === 'app_role');
+      if (appRoleEnum && Array.isArray(appRoleEnum.values)) extraRoles.push(...appRoleEnum.values);
+    }
+    for (const t of sortedTables) {
+      const { sensitive, readerRoles } = isSensitiveTable(t);
+      if (sensitive) extraRoles.push(...readerRoles);
+    }
+    allStatements.push(...generateRoleInfrastructure(extraRoles));
 
     // 2. Tables in topological order
     for (const table of sortedTables) {
