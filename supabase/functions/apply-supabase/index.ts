@@ -418,7 +418,7 @@ serve(async (req) => {
   }
 
   try {
-    const { tables, enums, indexes, storageBuckets, dbUrl } = await req.json();
+    const { tables, enums, indexes, storageBuckets, dbUrl, auth } = await req.json();
 
     if (!dbUrl) {
       throw new Error('Database connection URL is required. Use the direct connection string (port 5432) from Supabase Settings > Database.');
@@ -437,12 +437,28 @@ serve(async (req) => {
     // 1. Enums first
     if (enums && Array.isArray(enums)) {
       for (const e of enums as EnumType[]) {
+        // Skip app_role here — generateRoleInfrastructure handles it with merged roles.
+        if (e.name === 'app_role') continue;
         allStatements.push({ label: `Create enum "${e.name}"`, sql: generateEnumSQL(e) });
       }
     }
 
-    // 1.5 Role infrastructure (always — needed for admin-write policies on lookup/generic tables)
-    allStatements.push(...generateRoleInfrastructure());
+    // 1.5 Role infrastructure — collect every role referenced anywhere:
+    //   • baseline (admin/moderator/user) — always present
+    //   • auth.roles from the generation result
+    //   • staff roles from sensitive-table detection (teller/manager/doctor/etc.)
+    //   • values from the incoming app_role enum if present
+    const extraRoles: string[] = [];
+    if (auth && Array.isArray(auth.roles)) extraRoles.push(...auth.roles);
+    if (enums && Array.isArray(enums)) {
+      const appRoleEnum = (enums as EnumType[]).find(e => e.name === 'app_role');
+      if (appRoleEnum && Array.isArray(appRoleEnum.values)) extraRoles.push(...appRoleEnum.values);
+    }
+    for (const t of sortedTables) {
+      const { sensitive, readerRoles } = isSensitiveTable(t);
+      if (sensitive) extraRoles.push(...readerRoles);
+    }
+    allStatements.push(...generateRoleInfrastructure(extraRoles));
 
     // 2. Tables in topological order
     for (const table of sortedTables) {
