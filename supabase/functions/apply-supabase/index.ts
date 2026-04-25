@@ -207,7 +207,7 @@ function generateRLSStatements(table: DatabaseTable): string[] {
   const visCol = detectVisibilityColumn(table);
 
   const wrap = (name: string, sql: string) =>
-    `DO $$ BEGIN ${sql} EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
+    `DO $$ BEGIN ${sql}; EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
 
   if (ownerCol) {
     // SELECT: owner sees own rows; if visibility column exists, also publicly visible rows
