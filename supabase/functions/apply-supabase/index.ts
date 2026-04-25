@@ -300,11 +300,30 @@ function generateRLSStatements(table: DatabaseTable): string[] {
  * Generates the role infrastructure (enum + user_roles table + has_role function).
  * Idempotent — safe to run on every deploy.
  */
-function generateRoleInfrastructure(): { label: string; sql: string }[] {
+function generateRoleInfrastructure(extraRoles: string[] = []): { label: string; sql: string }[] {
+  // Always include these baseline roles
+  const baseline = ['admin', 'moderator', 'user'];
+  // Extra roles from sensitive-table detection (banking/medical/etc.) and user-supplied auth.roles
+  const allRoles = Array.from(new Set([...baseline, ...extraRoles.filter(r => /^[a-z_][a-z0-9_]*$/i.test(r))]));
+  const enumValues = allRoles.map(r => `'${r}'`).join(', ');
+  // Build ADD VALUE statements (idempotent — IF NOT EXISTS is supported in PG ≥ 9.6)
+  const addValueStmts = allRoles
+    .map(r => `ALTER TYPE public.app_role ADD VALUE IF NOT EXISTS '${r}';`)
+    .join(' ');
   return [
     {
-      label: 'Create app_role enum',
-      sql: `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN CREATE TYPE public.app_role AS ENUM ('admin', 'moderator', 'user'); END IF; END $$`,
+      label: 'Create app_role enum (with all referenced roles)',
+      sql: `DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'app_role') THEN
+          CREATE TYPE public.app_role AS ENUM (${enumValues});
+        END IF;
+      END $$`,
+    },
+    {
+      // Run ADD VALUE outside the BEGIN/END block — Postgres requires ALTER TYPE ADD VALUE
+      // to run in its own transaction, so we keep each as a top-level statement.
+      label: 'Ensure all roles exist in app_role enum',
+      sql: `DO $$ BEGIN ${addValueStmts} EXCEPTION WHEN others THEN NULL; END $$`,
     },
     {
       label: 'Create user_roles table',
