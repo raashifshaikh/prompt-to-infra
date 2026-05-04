@@ -16,6 +16,16 @@ B. **NEVER store roles on users/profiles table**. Roles on the same table as use
 C. **NEVER create a redundant "users" table** when targeting Supabase. Supabase provides auth.users for authentication. Create a "profiles" table with id referencing auth.users(id) on delete cascade for additional user data. Do NOT duplicate email/password fields.
 
 D. **RLS policies must be RESTRICTIVE, not permissive**. NEVER use "true" for all operations. Proper RLS:
+
+E. **CURRENCY columns must be `char(3)` with DEFAULT 'USD'**. Never `character` or `char(1)`.
+
+F. **All counter columns** (view_count, like_count, comment_count, share_count, follower_count, helpful_count, stock_quantity, quantity, sort_order) MUST have `DEFAULT 0` when NOT NULL.
+
+G. **All boolean columns** (is_*, has_*, published, is_active, is_featured, is_default_*) MUST have `DEFAULT false` when NOT NULL.
+
+H. **Customer-action tables** (orders, order_items, comments, likes, follows, reviews, content_reports, cart_items, wishlists, payouts) MUST include a `user_id` (or equivalent owner) column so authenticated users can perform the action. Never make these admin-only.
+
+I. **Public catalog/content tables** (products, videos, posts, brands, creators, categories, tags, comments, reviews) are read by anonymous visitors. Their RLS SELECT policies must allow `anon` reads. Writes remain owner-scoped.
    - SELECT: Users can only read their own data (auth.uid() = user_id) OR public data
    - INSERT: Users can only insert rows where user_id = auth.uid()
    - UPDATE: Users can only update their own rows

@@ -62,8 +62,6 @@ const BLOCKED_KEYWORDS = [
   'ALTER ROLE',
   'ALTER USER',
   'DROP POLICY',
-  'GRANT',
-  'REVOKE',
 ];
 
 function validateSQL(stmt: string): { safe: boolean; reason?: string } {
@@ -134,24 +132,59 @@ function generateEnumSQL(e: EnumType): string {
 
 function generateCreateTableSQL(table: DatabaseTable): string {
   const colDefs = table.columns.map(col => {
-    let def = `"${col.name}" ${col.type}`;
-    if (col.primary_key) def += ' PRIMARY KEY';
-    if (col.unique && !col.primary_key) def += ' UNIQUE';
-    if (!col.nullable && !col.primary_key) def += ' NOT NULL';
-    if (col.default) def += ` DEFAULT ${col.default}`;
+    // ---- Type & default coercion ----
+    let type = col.type;
+    let def = col.default;
+    const lname = col.name.toLowerCase();
+    const ltype = type.toLowerCase().trim();
+
+    // currency: char/character(1) → char(3) DEFAULT 'USD'
+    if (lname === 'currency' && (ltype === 'character' || ltype === 'char' || ltype === 'char(1)' || ltype === 'character(1)')) {
+      type = 'char(3)';
+      if (!def) def = "'USD'";
+    }
+
+    // sane defaults for counters / booleans / sort_order when NOT NULL and missing default
+    const isCounter = /(_count$|^view_count$|^like_count$|^comment_count$|^share_count$|^follower_count$|^following_count$|^helpful_count$|^stock_quantity$|^quantity$)/.test(lname);
+    const isSortPos = lname === 'sort_order' || lname === 'position' || lname === 'display_order';
+    const isBool = /^(boolean|bool)$/.test(ltype);
+    const isBoolName = /^(is_|has_)/.test(lname) || lname === 'published' || lname === 'is_active' || lname === 'is_featured';
+
+    if (!def && !col.nullable && !col.primary_key) {
+      if (isCounter || isSortPos) def = '0';
+      else if (isBool || (isBoolName && (isBool || ltype === ''))) def = 'false';
+    }
+
+    let line = `"${col.name}" ${type}`;
+    if (col.primary_key) line += ' PRIMARY KEY';
+    if (col.unique && !col.primary_key) line += ' UNIQUE';
+    if (!col.nullable && !col.primary_key) line += ' NOT NULL';
+    if (def) line += ` DEFAULT ${def}`;
     if (col.references) {
       const refMatch = col.references.match(/^(\w+)\((\w+)\)$/);
       if (refMatch) {
-        def += ` REFERENCES public."${refMatch[1]}"("${refMatch[2]}")`;
+        line += ` REFERENCES public."${refMatch[1]}"("${refMatch[2]}")`;
       } else {
-        def += ` REFERENCES ${col.references}`;
+        line += ` REFERENCES ${col.references}`;
       }
-      if (col.on_delete) def += ` ON DELETE ${col.on_delete}`;
+      if (col.on_delete) line += ` ON DELETE ${col.on_delete}`;
     }
-    return def;
+
+    // CHECK constraints
+    const checks: string[] = [];
+    if (lname === 'quantity' || lname === 'stock_quantity') checks.push(`"${col.name}" >= 0`);
+    if (lname === 'rating') checks.push(`"${col.name}" BETWEEN 1 AND 5`);
+    if (/^(amount|price|total_amount|subtotal|tax_amount|discount_amount|unit_price|balance|available_balance)$/.test(lname)) {
+      checks.push(`"${col.name}" >= 0`);
+    }
+    for (const c of checks) line += ` CHECK (${c})`;
+
+    return line;
   });
   return `CREATE TABLE IF NOT EXISTS public."${table.name}" (\n  ${colDefs.join(',\n  ')}\n)`;
 }
+
+
 
 function generateIndexSQL(idx: IndexDef): string {
   const cols = idx.columns.map(c => `"${c}"`).join(', ');
@@ -162,7 +195,7 @@ function generateIndexSQL(idx: IndexDef): string {
 
 function generateUpdatedAtTrigger(tableName: string): string[] {
   return [
-    `CREATE OR REPLACE FUNCTION public.update_updated_at_column() RETURNS TRIGGER AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$ LANGUAGE plpgsql`,
+    `CREATE OR REPLACE FUNCTION public.update_updated_at_column() RETURNS TRIGGER LANGUAGE plpgsql SET search_path = public AS $$ BEGIN NEW.updated_at = now(); RETURN NEW; END; $$`,
     `DO $$ BEGIN CREATE TRIGGER update_${tableName}_updated_at BEFORE UPDATE ON public."${tableName}" FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column(); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
   ];
 }
@@ -172,7 +205,7 @@ function generateUpdatedAtTrigger(tableName: string): string[] {
  * Returns the first matching column name, or null if none found.
  */
 function detectOwnershipColumn(table: DatabaseTable): string | null {
-  const candidates = ['user_id', 'owner_id', 'created_by', 'author_id', 'profile_id'];
+  const candidates = ['user_id', 'owner_id', 'created_by', 'author_id', 'profile_id', 'uploaded_by', 'seller_id', 'customer_id', 'creator_id', 'reporter_id', 'follower_id', 'sender_id'];
   for (const cand of candidates) {
     if (table.columns.some(c => c.name === cand)) return cand;
   }
@@ -191,6 +224,43 @@ function isLookupTable(table: DatabaseTable): boolean {
   // Lookup tables: categories, tags, types, statuses — globally readable, admin-write
   const lookupNames = ['categor', 'tag', 'type', 'status', 'role', 'permission', 'country', 'currency'];
   return lookupNames.some(n => table.name.toLowerCase().includes(n));
+}
+
+/**
+ * Public-content tables: catalog/social content that anonymous visitors must browse.
+ * SELECT is granted to anon+authenticated; writes are still owner-scoped.
+ */
+function isPublicContentTable(table: DatabaseTable): boolean {
+  const n = table.name.toLowerCase();
+  const publicNames = [
+    'video', 'post', 'product', 'product_variant', 'product_image', 'product_review',
+    'brand', 'creator', 'category', 'tag', 'review', 'story', 'collection',
+    'comment', 'like', 'follow', 'reaction',
+    'exchange_rate', 'currency_rate',
+  ];
+  // Don't treat private message threads as public
+  if (n.includes('message') || n.includes('private')) return false;
+  return publicNames.some(p => n === p || n === p + 's' || n.includes(p));
+}
+
+/**
+ * Find a parent FK that points to a table containing an owner column.
+ * Used to derive ownership for child rows like order_items via orders.user_id.
+ */
+function findParentOwnerFK(table: DatabaseTable, allTables: Map<string, DatabaseTable>):
+  { fkColumn: string; parentTable: string; parentPK: string; parentOwnerCol: string } | null {
+  for (const col of table.columns) {
+    if (!col.references) continue;
+    const m = col.references.match(/^(\w+)\((\w+)\)$/);
+    if (!m) continue;
+    const parent = allTables.get(m[1]);
+    if (!parent) continue;
+    const parentOwner = detectOwnershipColumn(parent);
+    if (parentOwner) {
+      return { fkColumn: col.name, parentTable: m[1], parentPK: m[2], parentOwnerCol: parentOwner };
+    }
+  }
+  return null;
 }
 
 /**
@@ -232,7 +302,7 @@ function buildRoleCheck(roles: string[]): string {
  * - Sensitive tables (banking/medical/audit): private — owner OR specific staff roles only
  * - Generic tables: authenticated read, admin-only writes (safer than blanket true)
  */
-function generateRLSStatements(table: DatabaseTable): string[] {
+function generateRLSStatements(table: DatabaseTable, allTables?: Map<string, DatabaseTable>): string[] {
   const tableName = table.name;
   const stmts: string[] = [`ALTER TABLE public."${tableName}" ENABLE ROW LEVEL SECURITY`];
 
@@ -246,6 +316,7 @@ function generateRLSStatements(table: DatabaseTable): string[] {
   const ownerCol = detectOwnershipColumn(table);
   const visCol = detectVisibilityColumn(table);
   const { sensitive, readerRoles } = isSensitiveTable(table);
+  const publicContent = isPublicContentTable(table);
 
   const wrap = (name: string, sql: string) =>
     `DO $$ BEGIN ${sql}; EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
@@ -271,14 +342,21 @@ function generateRLSStatements(table: DatabaseTable): string[] {
     // Delete: admin-only.
     stmts.push(wrap('delete', `CREATE POLICY "Admin delete on ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
   } else if (ownerCol) {
-    // SELECT: owner sees own rows; if visibility column exists, also publicly visible rows
-    const selectUsing = visCol
-      ? `(${visCol} = true OR auth.uid() = ${ownerCol})`
-      : `auth.uid() = ${ownerCol}`;
-    stmts.push(wrap('select', `CREATE POLICY "Owner or public read on ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated USING (${selectUsing})`));
+    // SELECT: public-content tables are world-readable; visibility-gated tables respect that flag; otherwise owner-only.
+    let selectUsing: string;
+    let selectRoles = 'authenticated';
+    if (publicContent) {
+      selectUsing = 'true';
+      selectRoles = 'authenticated, anon';
+    } else if (visCol) {
+      selectUsing = `(${visCol} = true OR auth.uid() = ${ownerCol})`;
+    } else {
+      selectUsing = `auth.uid() = ${ownerCol}`;
+    }
+    stmts.push(wrap('select', `CREATE POLICY "Read ${tableName}" ON public."${tableName}" FOR SELECT TO ${selectRoles} USING (${selectUsing})`));
     stmts.push(wrap('insert', `CREATE POLICY "Owner insert on ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (auth.uid() = ${ownerCol})`));
-    stmts.push(wrap('update', `CREATE POLICY "Owner update on ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (auth.uid() = ${ownerCol}) WITH CHECK (auth.uid() = ${ownerCol})`));
-    stmts.push(wrap('delete', `CREATE POLICY "Owner delete on ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (auth.uid() = ${ownerCol})`));
+    stmts.push(wrap('update', `CREATE POLICY "Owner update on ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (auth.uid() = ${ownerCol} OR public.has_role(auth.uid(), 'admin')) WITH CHECK (auth.uid() = ${ownerCol} OR public.has_role(auth.uid(), 'admin'))`));
+    stmts.push(wrap('delete', `CREATE POLICY "Owner delete on ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (auth.uid() = ${ownerCol} OR public.has_role(auth.uid(), 'admin'))`));
   } else if (isLookupTable(table)) {
     // Lookup: world-read, admin-write
     stmts.push(wrap('select', `CREATE POLICY "Public read ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated, anon USING (true)`));
@@ -286,11 +364,28 @@ function generateRLSStatements(table: DatabaseTable): string[] {
     stmts.push(wrap('update', `CREATE POLICY "Admin update ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
     stmts.push(wrap('delete', `CREATE POLICY "Admin delete ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
   } else {
-    // Generic table with no ownership column — admin-only writes, authenticated read
-    stmts.push(wrap('select', `CREATE POLICY "Authenticated read ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated USING (true)`));
-    stmts.push(wrap('insert', `CREATE POLICY "Admin insert ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'admin'))`));
-    stmts.push(wrap('update', `CREATE POLICY "Admin update ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
-    stmts.push(wrap('delete', `CREATE POLICY "Admin delete ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+    // No direct owner column. Try to derive ownership through a parent FK.
+    const parent = allTables ? findParentOwnerFK(table, allTables) : null;
+    if (parent) {
+      const ownsParent = `EXISTS (SELECT 1 FROM public."${parent.parentTable}" p WHERE p."${parent.parentPK}" = "${parent.fkColumn}" AND p."${parent.parentOwnerCol}" = auth.uid())`;
+      const selectRoles = publicContent ? 'authenticated, anon' : 'authenticated';
+      const selectUsing = publicContent ? 'true' : ownsParent;
+      stmts.push(wrap('select', `CREATE POLICY "Read ${tableName}" ON public."${tableName}" FOR SELECT TO ${selectRoles} USING (${selectUsing})`));
+      stmts.push(wrap('insert', `CREATE POLICY "Owner-via-parent insert on ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (${ownsParent})`));
+      stmts.push(wrap('update', `CREATE POLICY "Owner-via-parent update on ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (${ownsParent} OR public.has_role(auth.uid(), 'admin')) WITH CHECK (${ownsParent} OR public.has_role(auth.uid(), 'admin'))`));
+      stmts.push(wrap('delete', `CREATE POLICY "Owner-via-parent delete on ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (${ownsParent} OR public.has_role(auth.uid(), 'admin'))`));
+    } else if (publicContent) {
+      stmts.push(wrap('select', `CREATE POLICY "Public read ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated, anon USING (true)`));
+      stmts.push(wrap('insert', `CREATE POLICY "Authenticated insert ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (true)`));
+      stmts.push(wrap('update', `CREATE POLICY "Admin update ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+      stmts.push(wrap('delete', `CREATE POLICY "Admin delete ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+    } else {
+      // Generic table with no ownership column or parent — admin-only writes, authenticated read
+      stmts.push(wrap('select', `CREATE POLICY "Authenticated read ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated USING (true)`));
+      stmts.push(wrap('insert', `CREATE POLICY "Admin insert ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'admin'))`));
+      stmts.push(wrap('update', `CREATE POLICY "Admin update ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+      stmts.push(wrap('delete', `CREATE POLICY "Admin delete ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+    }
   }
 
   return stmts;
@@ -327,7 +422,7 @@ function generateRoleInfrastructure(extraRoles: string[] = []): { label: string;
     },
     {
       label: 'Create user_roles table',
-      sql: `CREATE TABLE IF NOT EXISTS public.user_roles (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL, role public.app_role NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE (user_id, role))`,
+      sql: `CREATE TABLE IF NOT EXISTS public.user_roles (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE, role public.app_role NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE (user_id, role))`,
     },
     {
       label: 'Enable RLS on user_roles',
@@ -336,6 +431,14 @@ function generateRoleInfrastructure(extraRoles: string[] = []): { label: string;
     {
       label: 'Create has_role security definer function',
       sql: `CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role public.app_role) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $func$ SELECT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role = _role) $func$`,
+    },
+    {
+      label: 'Restrict has_role execute to authenticated',
+      sql: `DO $$ BEGIN REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM PUBLIC, anon; GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated; EXCEPTION WHEN others THEN NULL; END $$`,
+    },
+    {
+      label: 'Create seed_first_admin bootstrap function',
+      sql: `CREATE OR REPLACE FUNCTION public.seed_first_admin(_user_id uuid) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $func$ BEGIN IF EXISTS (SELECT 1 FROM public.user_roles WHERE role = 'admin') THEN RAISE EXCEPTION 'An admin already exists; use the admin UI to grant additional admins.'; END IF; INSERT INTO public.user_roles (user_id, role) VALUES (_user_id, 'admin') ON CONFLICT DO NOTHING; END; $func$`,
     },
     {
       label: 'Policy: users read own roles',
@@ -393,7 +496,7 @@ function generateStorageBucketSQL(bucket: StorageBucket): { label: string; sql: 
   return stmts;
 }
 
-function generateStatementsForTable(table: DatabaseTable): { label: string; sql: string }[] {
+function generateStatementsForTable(table: DatabaseTable, allTables?: Map<string, DatabaseTable>): { label: string; sql: string }[] {
   const stmts: { label: string; sql: string }[] = [];
   stmts.push({ label: `Create table "${table.name}"`, sql: generateCreateTableSQL(table) });
   
@@ -404,7 +507,7 @@ function generateStatementsForTable(table: DatabaseTable): { label: string; sql:
     stmts.push({ label: `Add updated_at trigger on "${table.name}"`, sql: triggerStmts[1] });
   }
   
-  const rlsStmts = generateRLSStatements(table);
+  const rlsStmts = generateRLSStatements(table, allTables);
   stmts.push({ label: `Enable RLS on "${table.name}"`, sql: rlsStmts[0] });
   for (let i = 1; i < rlsStmts.length; i++) {
     stmts.push({ label: `Add RLS policy on "${table.name}"`, sql: rlsStmts[i] });
@@ -460,9 +563,43 @@ serve(async (req) => {
     }
     allStatements.push(...generateRoleInfrastructure(extraRoles));
 
+    // Build allTables map for cross-table RLS derivation
+    const allTablesMap = new Map<string, DatabaseTable>();
+    for (const t of sortedTables) allTablesMap.set(t.name, t);
+
     // 2. Tables in topological order
     for (const table of sortedTables) {
-      allStatements.push(...generateStatementsForTable(table));
+      allStatements.push(...generateStatementsForTable(table, allTablesMap));
+    }
+
+    // 2.5 handle_new_user trigger when a profiles table exists
+    const profiles = sortedTables.find(t => t.name === 'profiles' || t.name === 'profile');
+    if (profiles) {
+      const cols = new Set(profiles.columns.map(c => c.name));
+      const insertCols: string[] = ['id'];
+      const insertVals: string[] = ['NEW.id'];
+      if (cols.has('display_name')) {
+        insertCols.push('display_name');
+        insertVals.push(`COALESCE(NEW.raw_user_meta_data ->> 'full_name', NEW.raw_user_meta_data ->> 'name', split_part(NEW.email, '@', 1))`);
+      }
+      if (cols.has('username')) {
+        insertCols.push('username');
+        insertVals.push(`COALESCE(NEW.raw_user_meta_data ->> 'username', split_part(NEW.email, '@', 1))`);
+      }
+      if (cols.has('avatar_url')) {
+        insertCols.push('avatar_url');
+        insertVals.push(`NEW.raw_user_meta_data ->> 'avatar_url'`);
+      }
+      if (cols.has('email')) {
+        insertCols.push('email');
+        insertVals.push(`NEW.email`);
+      }
+      const fnSql = `CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $func$ BEGIN INSERT INTO public.${profiles.name} (${insertCols.map(c => `"${c}"`).join(', ')}) VALUES (${insertVals.join(', ')}) ON CONFLICT (id) DO NOTHING; RETURN NEW; END; $func$`;
+      allStatements.push({ label: 'Create handle_new_user function', sql: fnSql });
+      allStatements.push({
+        label: 'Attach on_auth_user_created trigger',
+        sql: `DO $$ BEGIN CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user(); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+      });
     }
     
     // 3. Indexes
