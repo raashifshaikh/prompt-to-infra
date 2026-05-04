@@ -207,7 +207,7 @@ function generateUpdatedAtTrigger(tableName: string): string[] {
  * Returns the first matching column name, or null if none found.
  */
 function detectOwnershipColumn(table: DatabaseTable): string | null {
-  const candidates = ['user_id', 'owner_id', 'created_by', 'author_id', 'profile_id'];
+  const candidates = ['user_id', 'owner_id', 'created_by', 'author_id', 'profile_id', 'uploaded_by', 'seller_id', 'customer_id', 'creator_id', 'reporter_id', 'follower_id', 'sender_id'];
   for (const cand of candidates) {
     if (table.columns.some(c => c.name === cand)) return cand;
   }
@@ -226,6 +226,43 @@ function isLookupTable(table: DatabaseTable): boolean {
   // Lookup tables: categories, tags, types, statuses — globally readable, admin-write
   const lookupNames = ['categor', 'tag', 'type', 'status', 'role', 'permission', 'country', 'currency'];
   return lookupNames.some(n => table.name.toLowerCase().includes(n));
+}
+
+/**
+ * Public-content tables: catalog/social content that anonymous visitors must browse.
+ * SELECT is granted to anon+authenticated; writes are still owner-scoped.
+ */
+function isPublicContentTable(table: DatabaseTable): boolean {
+  const n = table.name.toLowerCase();
+  const publicNames = [
+    'video', 'post', 'product', 'product_variant', 'product_image', 'product_review',
+    'brand', 'creator', 'category', 'tag', 'review', 'story', 'collection',
+    'comment', 'like', 'follow', 'reaction',
+    'exchange_rate', 'currency_rate',
+  ];
+  // Don't treat private message threads as public
+  if (n.includes('message') || n.includes('private')) return false;
+  return publicNames.some(p => n === p || n === p + 's' || n.includes(p));
+}
+
+/**
+ * Find a parent FK that points to a table containing an owner column.
+ * Used to derive ownership for child rows like order_items via orders.user_id.
+ */
+function findParentOwnerFK(table: DatabaseTable, allTables: Map<string, DatabaseTable>):
+  { fkColumn: string; parentTable: string; parentPK: string; parentOwnerCol: string } | null {
+  for (const col of table.columns) {
+    if (!col.references) continue;
+    const m = col.references.match(/^(\w+)\((\w+)\)$/);
+    if (!m) continue;
+    const parent = allTables.get(m[1]);
+    if (!parent) continue;
+    const parentOwner = detectOwnershipColumn(parent);
+    if (parentOwner) {
+      return { fkColumn: col.name, parentTable: m[1], parentPK: m[2], parentOwnerCol: parentOwner };
+    }
+  }
+  return null;
 }
 
 /**
