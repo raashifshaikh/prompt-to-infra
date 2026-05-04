@@ -62,8 +62,6 @@ const BLOCKED_KEYWORDS = [
   'ALTER ROLE',
   'ALTER USER',
   'DROP POLICY',
-  'GRANT',
-  'REVOKE',
 ];
 
 function validateSQL(stmt: string): { safe: boolean; reason?: string } {
