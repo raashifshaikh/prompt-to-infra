@@ -186,26 +186,7 @@ function generateCreateTableSQL(table: DatabaseTable): string {
   return `CREATE TABLE IF NOT EXISTS public."${table.name}" (\n  ${colDefs.join(',\n  ')}\n)`;
 }
 
-function _legacy(){
-  /* keep type defs above intact */
-  return ((col: TableColumn) => {
-    let def = `"${col.name}" ${col.type}`;
-    if (col.primary_key) def += ' PRIMARY KEY';
-    if (col.unique && !col.primary_key) def += ' UNIQUE';
-    if (!col.nullable && !col.primary_key) def += ' NOT NULL';
-    if (col.default) def += ` DEFAULT ${col.default}`;
-    if (col.references) {
-      const refMatch = col.references.match(/^(\w+)\((\w+)\)$/);
-      if (refMatch) {
-        def += ` REFERENCES public."${refMatch[1]}"("${refMatch[2]}")`;
-      } else {
-        def += ` REFERENCES ${col.references}`;
-      }
-      if (col.on_delete) def += ` ON DELETE ${col.on_delete}`;
-    }
-    return def;
-  });
-}
+
 
 function generateIndexSQL(idx: IndexDef): string {
   const cols = idx.columns.map(c => `"${c}"`).join(', ');
