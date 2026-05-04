@@ -424,7 +424,7 @@ function generateRoleInfrastructure(extraRoles: string[] = []): { label: string;
     },
     {
       label: 'Create user_roles table',
-      sql: `CREATE TABLE IF NOT EXISTS public.user_roles (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL, role public.app_role NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE (user_id, role))`,
+      sql: `CREATE TABLE IF NOT EXISTS public.user_roles (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE, role public.app_role NOT NULL, created_at timestamptz NOT NULL DEFAULT now(), UNIQUE (user_id, role))`,
     },
     {
       label: 'Enable RLS on user_roles',
@@ -433,6 +433,14 @@ function generateRoleInfrastructure(extraRoles: string[] = []): { label: string;
     {
       label: 'Create has_role security definer function',
       sql: `CREATE OR REPLACE FUNCTION public.has_role(_user_id uuid, _role public.app_role) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $func$ SELECT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id = _user_id AND role = _role) $func$`,
+    },
+    {
+      label: 'Restrict has_role execute to authenticated',
+      sql: `DO $$ BEGIN REVOKE EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) FROM PUBLIC, anon; GRANT EXECUTE ON FUNCTION public.has_role(uuid, public.app_role) TO authenticated; EXCEPTION WHEN others THEN NULL; END $$`,
+    },
+    {
+      label: 'Create seed_first_admin bootstrap function',
+      sql: `CREATE OR REPLACE FUNCTION public.seed_first_admin(_user_id uuid) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $func$ BEGIN IF EXISTS (SELECT 1 FROM public.user_roles WHERE role = 'admin') THEN RAISE EXCEPTION 'An admin already exists; use the admin UI to grant additional admins.'; END IF; INSERT INTO public.user_roles (user_id, role) VALUES (_user_id, 'admin') ON CONFLICT DO NOTHING; END; $func$`,
     },
     {
       label: 'Policy: users read own roles',
