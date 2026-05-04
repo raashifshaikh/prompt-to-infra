@@ -304,7 +304,7 @@ function buildRoleCheck(roles: string[]): string {
  * - Sensitive tables (banking/medical/audit): private — owner OR specific staff roles only
  * - Generic tables: authenticated read, admin-only writes (safer than blanket true)
  */
-function generateRLSStatements(table: DatabaseTable): string[] {
+function generateRLSStatements(table: DatabaseTable, allTables?: Map<string, DatabaseTable>): string[] {
   const tableName = table.name;
   const stmts: string[] = [`ALTER TABLE public."${tableName}" ENABLE ROW LEVEL SECURITY`];
 
@@ -318,6 +318,7 @@ function generateRLSStatements(table: DatabaseTable): string[] {
   const ownerCol = detectOwnershipColumn(table);
   const visCol = detectVisibilityColumn(table);
   const { sensitive, readerRoles } = isSensitiveTable(table);
+  const publicContent = isPublicContentTable(table);
 
   const wrap = (name: string, sql: string) =>
     `DO $$ BEGIN ${sql}; EXCEPTION WHEN duplicate_object THEN NULL; END $$`;
@@ -343,14 +344,21 @@ function generateRLSStatements(table: DatabaseTable): string[] {
     // Delete: admin-only.
     stmts.push(wrap('delete', `CREATE POLICY "Admin delete on ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
   } else if (ownerCol) {
-    // SELECT: owner sees own rows; if visibility column exists, also publicly visible rows
-    const selectUsing = visCol
-      ? `(${visCol} = true OR auth.uid() = ${ownerCol})`
-      : `auth.uid() = ${ownerCol}`;
-    stmts.push(wrap('select', `CREATE POLICY "Owner or public read on ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated USING (${selectUsing})`));
+    // SELECT: public-content tables are world-readable; visibility-gated tables respect that flag; otherwise owner-only.
+    let selectUsing: string;
+    let selectRoles = 'authenticated';
+    if (publicContent) {
+      selectUsing = 'true';
+      selectRoles = 'authenticated, anon';
+    } else if (visCol) {
+      selectUsing = `(${visCol} = true OR auth.uid() = ${ownerCol})`;
+    } else {
+      selectUsing = `auth.uid() = ${ownerCol}`;
+    }
+    stmts.push(wrap('select', `CREATE POLICY "Read ${tableName}" ON public."${tableName}" FOR SELECT TO ${selectRoles} USING (${selectUsing})`));
     stmts.push(wrap('insert', `CREATE POLICY "Owner insert on ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (auth.uid() = ${ownerCol})`));
-    stmts.push(wrap('update', `CREATE POLICY "Owner update on ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (auth.uid() = ${ownerCol}) WITH CHECK (auth.uid() = ${ownerCol})`));
-    stmts.push(wrap('delete', `CREATE POLICY "Owner delete on ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (auth.uid() = ${ownerCol})`));
+    stmts.push(wrap('update', `CREATE POLICY "Owner update on ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (auth.uid() = ${ownerCol} OR public.has_role(auth.uid(), 'admin')) WITH CHECK (auth.uid() = ${ownerCol} OR public.has_role(auth.uid(), 'admin'))`));
+    stmts.push(wrap('delete', `CREATE POLICY "Owner delete on ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (auth.uid() = ${ownerCol} OR public.has_role(auth.uid(), 'admin'))`));
   } else if (isLookupTable(table)) {
     // Lookup: world-read, admin-write
     stmts.push(wrap('select', `CREATE POLICY "Public read ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated, anon USING (true)`));
@@ -358,11 +366,28 @@ function generateRLSStatements(table: DatabaseTable): string[] {
     stmts.push(wrap('update', `CREATE POLICY "Admin update ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
     stmts.push(wrap('delete', `CREATE POLICY "Admin delete ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
   } else {
-    // Generic table with no ownership column — admin-only writes, authenticated read
-    stmts.push(wrap('select', `CREATE POLICY "Authenticated read ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated USING (true)`));
-    stmts.push(wrap('insert', `CREATE POLICY "Admin insert ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'admin'))`));
-    stmts.push(wrap('update', `CREATE POLICY "Admin update ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
-    stmts.push(wrap('delete', `CREATE POLICY "Admin delete ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+    // No direct owner column. Try to derive ownership through a parent FK.
+    const parent = allTables ? findParentOwnerFK(table, allTables) : null;
+    if (parent) {
+      const ownsParent = `EXISTS (SELECT 1 FROM public."${parent.parentTable}" p WHERE p."${parent.parentPK}" = "${parent.fkColumn}" AND p."${parent.parentOwnerCol}" = auth.uid())`;
+      const selectRoles = publicContent ? 'authenticated, anon' : 'authenticated';
+      const selectUsing = publicContent ? 'true' : ownsParent;
+      stmts.push(wrap('select', `CREATE POLICY "Read ${tableName}" ON public."${tableName}" FOR SELECT TO ${selectRoles} USING (${selectUsing})`));
+      stmts.push(wrap('insert', `CREATE POLICY "Owner-via-parent insert on ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (${ownsParent})`));
+      stmts.push(wrap('update', `CREATE POLICY "Owner-via-parent update on ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (${ownsParent} OR public.has_role(auth.uid(), 'admin')) WITH CHECK (${ownsParent} OR public.has_role(auth.uid(), 'admin'))`));
+      stmts.push(wrap('delete', `CREATE POLICY "Owner-via-parent delete on ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (${ownsParent} OR public.has_role(auth.uid(), 'admin'))`));
+    } else if (publicContent) {
+      stmts.push(wrap('select', `CREATE POLICY "Public read ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated, anon USING (true)`));
+      stmts.push(wrap('insert', `CREATE POLICY "Authenticated insert ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (true)`));
+      stmts.push(wrap('update', `CREATE POLICY "Admin update ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+      stmts.push(wrap('delete', `CREATE POLICY "Admin delete ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+    } else {
+      // Generic table with no ownership column or parent — admin-only writes, authenticated read
+      stmts.push(wrap('select', `CREATE POLICY "Authenticated read ${tableName}" ON public."${tableName}" FOR SELECT TO authenticated USING (true)`));
+      stmts.push(wrap('insert', `CREATE POLICY "Admin insert ${tableName}" ON public."${tableName}" FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'admin'))`));
+      stmts.push(wrap('update', `CREATE POLICY "Admin update ${tableName}" ON public."${tableName}" FOR UPDATE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+      stmts.push(wrap('delete', `CREATE POLICY "Admin delete ${tableName}" ON public."${tableName}" FOR DELETE TO authenticated USING (public.has_role(auth.uid(), 'admin'))`));
+    }
   }
 
   return stmts;
