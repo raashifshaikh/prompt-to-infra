@@ -490,7 +490,7 @@ function generateStorageBucketSQL(bucket: StorageBucket): { label: string; sql: 
   return stmts;
 }
 
-function generateStatementsForTable(table: DatabaseTable): { label: string; sql: string }[] {
+function generateStatementsForTable(table: DatabaseTable, allTables?: Map<string, DatabaseTable>): { label: string; sql: string }[] {
   const stmts: { label: string; sql: string }[] = [];
   stmts.push({ label: `Create table "${table.name}"`, sql: generateCreateTableSQL(table) });
   
@@ -501,7 +501,7 @@ function generateStatementsForTable(table: DatabaseTable): { label: string; sql:
     stmts.push({ label: `Add updated_at trigger on "${table.name}"`, sql: triggerStmts[1] });
   }
   
-  const rlsStmts = generateRLSStatements(table);
+  const rlsStmts = generateRLSStatements(table, allTables);
   stmts.push({ label: `Enable RLS on "${table.name}"`, sql: rlsStmts[0] });
   for (let i = 1; i < rlsStmts.length; i++) {
     stmts.push({ label: `Add RLS policy on "${table.name}"`, sql: rlsStmts[i] });
