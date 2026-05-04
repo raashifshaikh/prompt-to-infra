@@ -563,9 +563,43 @@ serve(async (req) => {
     }
     allStatements.push(...generateRoleInfrastructure(extraRoles));
 
+    // Build allTables map for cross-table RLS derivation
+    const allTablesMap = new Map<string, DatabaseTable>();
+    for (const t of sortedTables) allTablesMap.set(t.name, t);
+
     // 2. Tables in topological order
     for (const table of sortedTables) {
-      allStatements.push(...generateStatementsForTable(table));
+      allStatements.push(...generateStatementsForTable(table, allTablesMap));
+    }
+
+    // 2.5 handle_new_user trigger when a profiles table exists
+    const profiles = sortedTables.find(t => t.name === 'profiles' || t.name === 'profile');
+    if (profiles) {
+      const cols = new Set(profiles.columns.map(c => c.name));
+      const insertCols: string[] = ['id'];
+      const insertVals: string[] = ['NEW.id'];
+      if (cols.has('display_name')) {
+        insertCols.push('display_name');
+        insertVals.push(`COALESCE(NEW.raw_user_meta_data ->> 'full_name', NEW.raw_user_meta_data ->> 'name', split_part(NEW.email, '@', 1))`);
+      }
+      if (cols.has('username')) {
+        insertCols.push('username');
+        insertVals.push(`COALESCE(NEW.raw_user_meta_data ->> 'username', split_part(NEW.email, '@', 1))`);
+      }
+      if (cols.has('avatar_url')) {
+        insertCols.push('avatar_url');
+        insertVals.push(`NEW.raw_user_meta_data ->> 'avatar_url'`);
+      }
+      if (cols.has('email')) {
+        insertCols.push('email');
+        insertVals.push(`NEW.email`);
+      }
+      const fnSql = `CREATE OR REPLACE FUNCTION public.handle_new_user() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $func$ BEGIN INSERT INTO public.${profiles.name} (${insertCols.map(c => `"${c}"`).join(', ')}) VALUES (${insertVals.join(', ')}) ON CONFLICT (id) DO NOTHING; RETURN NEW; END; $func$`;
+      allStatements.push({ label: 'Create handle_new_user function', sql: fnSql });
+      allStatements.push({
+        label: 'Attach on_auth_user_created trigger',
+        sql: `DO $$ BEGIN CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION public.handle_new_user(); EXCEPTION WHEN duplicate_object THEN NULL; END $$`,
+      });
     }
     
     // 3. Indexes
