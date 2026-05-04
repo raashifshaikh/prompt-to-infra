@@ -134,6 +134,61 @@ function generateEnumSQL(e: EnumType): string {
 
 function generateCreateTableSQL(table: DatabaseTable): string {
   const colDefs = table.columns.map(col => {
+    // ---- Type & default coercion ----
+    let type = col.type;
+    let def = col.default;
+    const lname = col.name.toLowerCase();
+    const ltype = type.toLowerCase().trim();
+
+    // currency: char/character(1) → char(3) DEFAULT 'USD'
+    if (lname === 'currency' && (ltype === 'character' || ltype === 'char' || ltype === 'char(1)' || ltype === 'character(1)')) {
+      type = 'char(3)';
+      if (!def) def = "'USD'";
+    }
+
+    // sane defaults for counters / booleans / sort_order when NOT NULL and missing default
+    const isCounter = /(_count$|^view_count$|^like_count$|^comment_count$|^share_count$|^follower_count$|^following_count$|^helpful_count$|^stock_quantity$|^quantity$)/.test(lname);
+    const isSortPos = lname === 'sort_order' || lname === 'position' || lname === 'display_order';
+    const isBool = /^(boolean|bool)$/.test(ltype);
+    const isBoolName = /^(is_|has_)/.test(lname) || lname === 'published' || lname === 'is_active' || lname === 'is_featured';
+
+    if (!def && !col.nullable && !col.primary_key) {
+      if (isCounter || isSortPos) def = '0';
+      else if (isBool || (isBoolName && (isBool || ltype === ''))) def = 'false';
+    }
+
+    let line = `"${col.name}" ${type}`;
+    if (col.primary_key) line += ' PRIMARY KEY';
+    if (col.unique && !col.primary_key) line += ' UNIQUE';
+    if (!col.nullable && !col.primary_key) line += ' NOT NULL';
+    if (def) line += ` DEFAULT ${def}`;
+    if (col.references) {
+      const refMatch = col.references.match(/^(\w+)\((\w+)\)$/);
+      if (refMatch) {
+        line += ` REFERENCES public."${refMatch[1]}"("${refMatch[2]}")`;
+      } else {
+        line += ` REFERENCES ${col.references}`;
+      }
+      if (col.on_delete) line += ` ON DELETE ${col.on_delete}`;
+    }
+
+    // CHECK constraints
+    const checks: string[] = [];
+    if (lname === 'quantity' || lname === 'stock_quantity') checks.push(`"${col.name}" >= 0`);
+    if (lname === 'rating') checks.push(`"${col.name}" BETWEEN 1 AND 5`);
+    if (/^(amount|price|total_amount|subtotal|tax_amount|discount_amount|unit_price|balance|available_balance)$/.test(lname)) {
+      checks.push(`"${col.name}" >= 0`);
+    }
+    for (const c of checks) line += ` CHECK (${c})`;
+
+    return line;
+  });
+  return `CREATE TABLE IF NOT EXISTS public."${table.name}" (\n  ${colDefs.join(',\n  ')}\n)`;
+}
+
+function _legacy(){
+  /* keep type defs above intact */
+  return ((col: TableColumn) => {
     let def = `"${col.name}" ${col.type}`;
     if (col.primary_key) def += ' PRIMARY KEY';
     if (col.unique && !col.primary_key) def += ' UNIQUE';
@@ -150,7 +205,6 @@ function generateCreateTableSQL(table: DatabaseTable): string {
     }
     return def;
   });
-  return `CREATE TABLE IF NOT EXISTS public."${table.name}" (\n  ${colDefs.join(',\n  ')}\n)`;
 }
 
 function generateIndexSQL(idx: IndexDef): string {
